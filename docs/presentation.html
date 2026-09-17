@@ -1,0 +1,2164 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>사망자 명의 금융거래 신속차단 시스템 DB 설계</title>
+<style>
+:root{
+  --ink:#15181c; --ink2:#2f353d; --mute:#7c8794; --faint:#a8b1bb;
+  --line:#e6e9ed; --line2:#f1f3f6; --paper:#ffffff; --tint:#f7f8fa;
+  --accent:#15467a; --accent-soft:#eaf0f7; --accent-line:#c3d4e6;
+  --ok:#12684f; --ok-soft:#e7f2ee;
+  --hl:#9a5518; --hl-soft:#f8f0e7;
+  --mono:"JetBrains Mono",Consolas,"D2Coding",Menlo,monospace;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{height:100%;overflow:hidden;background:#1b1f24;
+  font-family:"Pretendard","Malgun Gothic","맑은 고딕","Apple SD Gothic Neo","Noto Sans KR",sans-serif;
+  -webkit-font-smoothing:antialiased;text-rendering:optimizeLegibility}
+#wrap{position:absolute;inset:0;display:flex;align-items:center;justify-content:center}
+#stage{width:1280px;height:720px;background:var(--paper);position:relative;
+  transform-origin:center;overflow:hidden;border-radius:6px;
+  box-shadow:0 24px 80px rgba(0,0,0,.55)}
+.slide{position:absolute;inset:0;padding:56px 72px 78px;display:none;flex-direction:column;
+  color:var(--ink);overflow:hidden}
+.slide.on{display:flex}
+
+.kicker{display:flex;align-items:center;gap:10px;font-size:13px;font-weight:700;
+  color:var(--accent);letter-spacing:.14em;margin-bottom:14px}
+.kicker::before{content:"";width:22px;height:2px;background:var(--accent);display:block}
+h1{font-size:52px;font-weight:800;letter-spacing:-.035em;line-height:1.18}
+h2{font-size:37px;font-weight:700;letter-spacing:-.032em;line-height:1.22;margin-bottom:8px}
+.lede{font-size:18px;color:var(--mute);line-height:1.6;margin-bottom:26px;max-width:880px}
+p,li{font-size:19.5px;line-height:1.66}
+.sm{font-size:16.5px;line-height:1.6}
+.xs{font-size:14.5px;line-height:1.55}
+.mute{color:var(--mute)}
+ul{margin-left:20px} li{margin-bottom:8px}
+.body{flex:1;min-height:0}
+.cols{display:grid;grid-template-columns:1fr 1fr;gap:38px;height:100%}
+.cols.w60{grid-template-columns:1.35fr 1fr}
+.cols.w40{grid-template-columns:1fr 1.35fr}
+.cols3{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+.stack>*+*{margin-top:14px}
+
+table{width:100%;border-collapse:collapse}
+th{font-size:13px;font-weight:700;color:var(--mute);letter-spacing:.09em;
+  text-align:left;padding:0 14px 9px;border-bottom:1.5px solid var(--ink2)}
+td{font-size:16.5px;padding:11px 14px;border-bottom:1px solid var(--line);vertical-align:top;line-height:1.5}
+tr:last-child td{border-bottom:none}
+table.tight td{padding:8px 12px;font-size:15.5px}
+
+.card{background:var(--tint);border:1px solid var(--line);border-radius:10px;padding:18px 20px}
+.card .lab{display:inline-block;font-size:11.5px;font-weight:700;letter-spacing:.1em;
+  color:var(--mute);margin-bottom:7px}
+.card h3{font-size:18px;font-weight:700;margin-bottom:7px;letter-spacing:-.02em}
+.card.a{background:var(--accent-soft);border-color:var(--accent-line)}
+.card.a .lab,.card.a h3{color:var(--accent)}
+.card.k{background:var(--ok-soft);border-color:#c9e2d9}
+.card.k .lab,.card.k h3{color:var(--ok)}
+.card.w{background:var(--hl-soft);border-color:#ecdcc9}
+.card.w .lab,.card.w h3{color:var(--hl)}
+
+pre{background:#151a20;color:#dfe7ef;padding:20px 22px;border-radius:10px;
+  font-family:var(--mono);font-size:16px;line-height:1.62;overflow:auto}
+pre .k{color:#7fb5ea} pre .s{color:#9fd39f} pre .c{color:#7d8894;font-style:italic}
+pre .h{color:#e8b168}
+code{font-family:var(--mono);font-size:.92em;background:var(--line2);
+  padding:2px 6px;border-radius:4px;color:var(--ink2)}
+.mono{font-family:var(--mono)}
+
+/* 클릭 가능한 용어 */
+.t{border-bottom:1.5px dotted var(--accent);cursor:pointer;color:var(--accent);
+  font-weight:600;transition:background .12s;padding:0 1px;border-radius:2px}
+.t:hover{background:var(--accent-soft)}
+.t::after{content:"ⓘ";font-size:.68em;vertical-align:super;margin-left:2px;opacity:.65}
+pre .t{color:#e8b168;border-bottom-color:#8a6a3a}
+pre .t:hover{background:rgba(232,177,104,.14)}
+.tb{display:inline-block;font-size:9.5px;font-weight:700;padding:1px 5px;border-radius:7px;
+  margin-right:5px;vertical-align:2px;letter-spacing:.03em;font-family:"Pretendard","Malgun Gothic",sans-serif}
+.tb-core{background:#e8eef6;color:#15467a} .tb-ext{background:#eceef0;color:#5b6570}
+.tb-chnl{background:#fbeede;color:#9a5518} .tb-info{background:#e5f1ec;color:#12684f}
+.tb-comm{background:#efe8f4;color:#6b4a86}
+.pill{display:inline-block;padding:4px 11px;border-radius:14px;font-size:14px;font-weight:700;
+  background:var(--accent-soft);color:var(--accent);border:1px solid var(--accent-line);
+  cursor:pointer;transition:all .12s;font-family:var(--mono)}
+.pill:hover{background:var(--accent);color:#fff}
+.hint{display:inline-flex;align-items:center;gap:6px;font-size:13px;color:var(--faint);
+  margin-top:auto;padding-top:10px}
+.hint b{color:var(--accent);font-weight:700}
+
+.big{display:flex;gap:40px}
+.big .n{font-size:44px;font-weight:800;color:var(--accent);letter-spacing:-.035em;line-height:1.05}
+.big .l{font-size:14px;color:var(--mute);margin-top:5px}
+
+.flow{display:flex;align-items:center;gap:6px;margin:6px 0 16px}
+.flow .n{flex:1;border:1px solid var(--line);border-radius:9px;background:#fff;
+  padding:13px 8px;text-align:center}
+.flow .n b{display:block;font-size:15px;font-family:var(--mono);color:var(--accent);margin-bottom:3px}
+.flow .n span{font-size:14.5px;color:var(--ink2)}
+.flow .n.alt{background:var(--hl-soft);border-color:#ecdcc9}
+.flow .n.alt b{color:var(--hl)}
+.flow .a{color:var(--faint);font-size:16px}
+.layer{display:flex;align-items:baseline;gap:12px;padding:10px 14px;border-radius:8px;
+  border:1px solid var(--line);margin-bottom:8px;background:#fff}
+.layer b{font-size:16.5px;letter-spacing:-.01em;min-width:190px}
+.layer i{font-style:normal;font-size:13px;color:var(--accent);font-weight:700}
+.layer span{font-size:14.5px;color:var(--mute)}
+
+footer{position:absolute;left:72px;right:72px;bottom:24px;display:flex;
+  justify-content:space-between;align-items:center;font-size:13px;color:var(--faint);
+  border-top:1px solid var(--line);padding-top:11px}
+.who{font-weight:700;color:var(--accent);letter-spacing:.06em}
+#bar{position:absolute;left:0;bottom:0;height:3px;background:var(--accent);transition:width .3s}
+
+.cover{background:#0e2a47;color:#fff;justify-content:center;padding:0 82px}
+.cover h1{color:#fff}
+.cover .kicker{color:#8fb3d6}.cover .kicker::before{background:#8fb3d6}
+.cover .lede{color:#b8cee3}
+.cover p{color:#cfdded}
+.cover footer{color:#7f9dbb;border-top-color:rgba(255,255,255,.18)}
+.cover .big .n{color:#fff}.cover .big .l{color:#8fb3d6}
+.backup{background:#fcfcfa}
+.backup .kicker{color:var(--hl)}.backup .kicker::before{background:var(--hl)}
+
+#modal{position:fixed;inset:0;background:rgba(10,14,19,.62);z-index:90;
+  display:none;align-items:center;justify-content:center;padding:40px;backdrop-filter:blur(3px)}
+#modal.on{display:flex}
+.mbox{background:#fff;border-radius:14px;max-width:760px;width:100%;max-height:82vh;
+  display:flex;flex-direction:column;box-shadow:0 30px 90px rgba(0,0,0,.45);overflow:hidden}
+.mhead{padding:24px 28px 16px;border-bottom:1px solid var(--line);
+  display:flex;justify-content:space-between;align-items:flex-start;gap:16px}
+.mhead h4{font-size:23px;font-weight:700;letter-spacing:-.02em;color:var(--ink)}
+.mhead .tag{font-size:12px;font-weight:700;letter-spacing:.1em;color:var(--accent);
+  display:block;margin-bottom:5px}
+.mx{border:none;background:var(--line2);width:32px;height:32px;border-radius:8px;
+  cursor:pointer;font-size:16px;color:var(--mute);flex:none;line-height:1}
+.mx:hover{background:var(--line);color:var(--ink)}
+.mbody{padding:20px 28px 28px;overflow:auto}
+.mbody p{font-size:16px;line-height:1.72;margin-bottom:12px;color:var(--ink2)}
+.mbody table{margin:10px 0 14px}
+.mbody th{font-size:12px;padding-bottom:7px}
+.mbody td{font-size:14.5px;padding:8px 12px}
+.mbody code{font-size:14px}
+.mbody .note{background:var(--accent-soft);border-radius:8px;padding:13px 16px;
+  font-size:15px;line-height:1.65;color:var(--accent);margin-top:6px}
+.mbody .note b{font-weight:700}
+.mbody h5{font-size:15px;font-weight:700;margin:16px 0 8px;color:var(--ink);
+  letter-spacing:-.01em}
+.mbody ul{margin:6px 0 12px 18px}
+.mbody li{font-size:15.5px;line-height:1.66;margin-bottom:6px;color:var(--ink2)}
+
+#notes{position:fixed;left:0;right:0;bottom:0;background:#12161b;color:#c4cfdb;
+  padding:13px 24px;font-size:14.5px;line-height:1.55;display:none;z-index:70;
+  border-top:2px solid var(--accent)}
+#notes.on{display:block}
+#help{position:fixed;right:16px;top:14px;color:#6d7885;font-size:11.5px;
+  z-index:60;font-family:var(--mono);letter-spacing:.02em}
+#idx{position:fixed;inset:0;background:rgba(12,16,21,.97);z-index:80;display:none;
+  padding:44px 64px;overflow:auto;color:#d5dde6}
+#idx.on{display:block}
+#idx h3{font-size:20px;margin-bottom:20px;color:#fff;font-weight:700}
+#idx ol{margin-left:22px;columns:2;column-gap:56px}
+#idx li{font-size:16px;margin-bottom:9px;cursor:pointer;color:#a9b5c2}
+#idx li:hover{color:#fff}
+
+#erdx{position:fixed;inset:0;background:#f6f7f9;z-index:85;display:none;flex-direction:column}
+#erdx.on{display:flex}
+#erdbar{display:flex;align-items:center;gap:14px;padding:12px 20px;background:#fff;
+  border-bottom:1px solid var(--line);flex:none;flex-wrap:wrap}
+#erdbar h5{font-size:16px;font-weight:700;letter-spacing:-.02em;margin-right:4px}
+.sbtn{border:1px solid var(--line);background:#fff;border-radius:16px;padding:5px 13px;
+  font-size:13px;font-weight:600;cursor:pointer;color:var(--ink2);font-family:inherit}
+.sbtn:hover{border-color:var(--accent-line);background:var(--accent-soft)}
+.sbtn.on{background:var(--accent);color:#fff;border-color:var(--accent)}
+#erdq{border:1px solid var(--line);border-radius:8px;padding:6px 12px;font-size:13px;
+  width:230px;font-family:inherit;outline:none}
+#erdq:focus{border-color:var(--accent)}
+#erdmain{flex:1;display:flex;min-height:0}
+#erdgrid{flex:1;overflow-y:auto;overflow-x:hidden;padding:16px;display:block;position:relative}
+#erdcanvas{position:relative;width:100%;min-height:10px}
+#erdside{width:330px;flex:none;background:#fff;border-left:1px solid var(--line);
+  overflow-y:auto;padding:18px;font-size:13px;line-height:1.55}
+#erdside p{font-size:13px;line-height:1.55}
+.tcard{position:absolute;top:0;left:0;background:#fff;border:1px solid var(--line);
+  border-radius:10px;overflow:hidden}
+.tcard.sel{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+.tcard.dim{opacity:.32}
+.thead{padding:9px 12px;cursor:pointer;border-bottom:1px solid var(--line);
+  display:flex;align-items:flex-start;gap:8px}
+.thead .ti{flex:1;min-width:0}
+.thead b{font-size:13.5px;font-family:var(--mono);display:block;letter-spacing:-.01em;
+  overflow:hidden;text-overflow:ellipsis}
+.thead .ti span{font-size:12px;color:var(--mute);display:block}
+.thead .sc{flex:none;font-size:10px;font-weight:700;padding:2px 7px;border-radius:9px;
+  letter-spacing:.04em;white-space:nowrap}
+#erdx.compact .crow{display:none}
+#erdx.compact .thead{border-bottom:none}
+.sc-core{background:#e8eef6;color:#15467a} .sc-ext{background:#eceef0;color:#5b6570}
+.sc-chnl{background:#fbeede;color:#9a5518} .sc-info{background:#e5f1ec;color:#12684f}
+.sc-comm{background:#efe8f4;color:#6b4a86}
+.crow{display:flex;align-items:center;gap:6px;padding:4px 12px;font-size:12px;
+  border-bottom:1px solid var(--line2);line-height:1.45;min-height:22px}
+.crow:last-child{border-bottom:none}
+.crow .m{flex:none;width:26px;font-size:9px;font-weight:700;color:#c73e3e;text-align:center}
+.crow{align-items:flex-start!important;padding-top:5px;padding-bottom:5px}
+.crow .nm{flex:1;font-family:var(--mono);font-size:11.5px;color:var(--ink);min-width:0}
+.crow .nm i{display:block;font-style:normal;font-size:10px;color:var(--mute);
+  font-family:"Pretendard","Malgun Gothic",sans-serif;margin-top:1px;line-height:1.3}
+.crow .m,.crow .ty,.crow .ar{margin-top:1px}
+#erdside .why{font-size:13px;line-height:1.6;color:var(--ink2);background:var(--accent-soft);
+  border-radius:8px;padding:11px 13px;margin:10px 0 4px}
+.crow .ty{font-size:10px;color:var(--faint);font-family:var(--mono)}
+.crow.isfk{cursor:pointer}
+.crow.isfk:hover{background:var(--accent-soft)}
+.crow.isfk .nm{color:var(--accent);font-weight:600}
+.crow.gen{opacity:.5}
+.crow.nul .nm{color:var(--mute)}
+.crow .ar{font-size:10px;color:var(--accent);font-family:var(--mono)}
+#erdside h6{font-size:11px;font-weight:700;letter-spacing:.1em;color:var(--mute);margin:16px 0 8px}
+#erdside h6:first-child{margin-top:0}
+#erdside .tt{font-size:17px;font-weight:700;font-family:var(--mono);letter-spacing:-.02em}
+#erdside .tk{font-size:13px;color:var(--mute);margin-bottom:4px}
+.rel{border:1px solid var(--line);border-radius:8px;padding:8px 11px;margin-bottom:7px;
+  font-size:12px;cursor:pointer}
+.rel:hover{border-color:var(--accent);background:var(--accent-soft)}
+.rel b{font-family:var(--mono);font-size:12px;display:block;color:var(--accent)}
+.rel span{color:var(--mute);font-size:11.5px}
+.rel .cn{font-family:var(--mono);font-size:10px;color:var(--faint);display:block;margin-top:2px}
+#erdempty{font-size:13px;color:var(--mute);line-height:1.6}
+@media print{html,body{overflow:visible;background:#fff}#wrap{position:static}
+  #stage{transform:none!important;box-shadow:none;page-break-after:always;border-radius:0}
+  .slide{display:flex!important;position:relative;height:720px}#help,#bar{display:none}}
+</style>
+</head>
+<body>
+<div id="help">← → 이동 · F 전체화면 · N 노트 · M 목차 · E ERD · 점선 용어 클릭</div>
+<div id="wrap"><div id="stage">
+
+<!-- 1 -->
+<section class="slide cover" data-note="인사 후 한 문장으로: 사망신고 다음 날부터 금융거래를 막는 제도를 데이터베이스로 구현했습니다.">
+  <div class="kicker">데이터베이스 · 팀 프로젝트</div>
+  <h1>사망자 명의 금융거래<br>신속차단 시스템 DB 설계</h1>
+  <p class="lede" style="margin-top:20px;font-size:20px">금융위원회 2026년 9월 11일 시행 제도의 데이터 모델링</p>
+  <p style="margin-top:26px;font-size:18px">발표자 A · 발표자 B</p>
+  <footer><span>데이터베이스</span><span></span></footer>
+</section>
+
+<!-- 2 -->
+<section class="slide" data-note="A · 1분. 숫자 세 개만 말하고 넘어갈 것. 제도 설명에 시간 쓰지 않는다.">
+  <div class="kicker">배경</div>
+  <h2>2개월의 사각지대</h2>
+  <p class="lede">사망신고를 해도 은행이 그 사실을 알기까지 최대 두 달이 걸렸습니다.</p>
+  <div class="body cols w60">
+    <div class="stack">
+      <p class="sm">기존에는 행정안전부의 사망자 정보가 <b>월 1회</b>, 그것도 일부 금융회사에만 제공됐습니다. 사망신고 기한 1개월과 합쳐지면 공백이 두 달까지 벌어집니다.</p>
+      <div class="card w"><span class="lab">그 사이에</span>
+        <p class="sm">사망자 명의 계좌에서 인출과 이체가 계속 가능합니다. 상속인 간 분쟁, 명의도용 범죄의 통로가 됩니다.</p></div>
+    </div>
+    <div class="stack" style="justify-content:center;display:flex;flex-direction:column">
+      <div><div class="big"><div><div class="n">월 1회 → 매일</div><div class="l">정보 제공 주기</div></div></div></div>
+      <div><div class="big"><div><div class="n">4,890개사</div><div class="l">정보를 받는 전 금융권</div></div></div></div>
+      <div><div class="big"><div><div class="n">신고 다음 날</div><div class="l">차단 개시 시점</div></div></div></div>
+    </div>
+  </div>
+  <footer><span class="who">A</span><span></span></footer>
+</section>
+
+<!-- 3 -->
+<section class="slide" data-note="A · 1분. 오른쪽 열을 짚으며 읽는다. 제도를 DB로 번역했다는 증거.">
+  <div class="kicker">요구사항 도출</div>
+  <h2>제도 문구를 DB 요구사항으로</h2>
+  <p class="lede">보도자료의 각 문장이 어떤 테이블과 제약으로 바뀌었는지 대응시켰습니다.</p>
+  <div class="body">
+  <table>
+    <tr><th style="width:42%">제도 내용</th><th>DB에서 표현해야 할 것</th></tr>
+    <tr><td>매일 1회 사망자 정보 수신</td><td>배치 수신 이력 — 파일 단위 + 레코드 단위</td></tr>
+    <tr><td>사망신고 <b>다음 날</b>부터 차단</td><td>차단개시일시 = 사망일이 아니라 <b>신고일 + 1일</b></td></tr>
+    <tr><td>입금 등 필수 거래만 허용</td><td>거래유형 × 방향을 <b>데이터로</b> 관리하는 규칙 테이블</td></tr>
+    <tr><td>치료비·장례비 예외 인출</td><td>신청–서류–승인–지급 상태 흐름 + 지정 수취처</td></tr>
+    <tr><td>자동이체 중단</td><td>약정과 처리결과를 분리, 실패사유코드 기록</td></tr>
+    <tr><td>처리 이력의 전자적 기록·관리</td><td>감사로그 — 사망정보 <b>조회</b> 이력까지 포함</td></tr>
+  </table>
+  </div>
+  <footer><span class="who">A</span><span></span></footer>
+</section>
+
+<!-- 4 -->
+<section class="slide" data-note="A · 1분. 제외 사유를 반드시 말한다. 왜 뺐는지가 평가 포인트.">
+  <div class="kicker">범위 정의</div>
+  <h2>어디까지 구현했는가</h2>
+  <p class="lede">차단이라는 하나의 흐름을 끝까지 구현하는 데 집중했습니다.</p>
+  <div class="body cols">
+    <div class="card k"><span class="lab">범위 내</span>
+      <p class="sm">은행 1개사 · 입출금이 자유로운 예금 1종</p>
+      <p class="sm" style="margin-top:10px">사망정보 수신 → 고객·계좌 상태 반영 → 거래 차단 판정 → 예외 인출 → 감사·집계</p></div>
+    <div class="card"><span class="lab">범위 외 — 제외 사유</span>
+      <table class="tight">
+        <tr><td style="width:44%">카드·보험·증권</td><td class="mute">업권별 원장 구조가 상이</td></tr>
+        <tr><td>상속 분할·상속세</td><td class="mute">금융회사 시스템 밖의 업무</td></tr>
+        <tr><td>대출 원장</td><td class="mute">차단 대상 유형으로만 존재</td></tr>
+        <tr><td>공동망 고정길이 전문</td><td class="mute">참가기관 대상 비공개 규격</td></tr>
+        <tr><td>실제 행안부 API</td><td class="mute">실습 환경에서 접근 불가</td></tr>
+      </table></div>
+  </div>
+  <footer><span class="who">A</span><span></span></footer>
+</section>
+
+<!-- NEW : 법령 근거 -->
+<section class="slide" data-note="A · 1분. 법령에서 출발해 모델을 도출했다는 흐름을 보여주는 장. 조문을 클릭하면 요지가 열린다.">
+  <div class="kicker">설계 근거</div>
+  <h2>법령에서 모델을 도출했다</h2>
+  <p class="lede">제도 문서만 보고 만든 것이 아니라, 근거 법령의 조문을 확인해 다섯 축으로 정리했습니다. 조문을 클릭하면 요지가 열립니다.</p>
+  <div class="body">
+  <table class="tight">
+    <tr><th style="width:8%">축</th><th style="width:30%">근거 법령</th><th>모델에 반영한 것</th></tr>
+    <tr><td><b>기준정보</b></td><td><span class="t" data-t="law84">가족관계등록법 제84조·제85조</span></td>
+        <td><code>death_dt</code>와 <code>death_report_dt</code>를 분리하고, 차단 기준을 <b>신고일+1일</b>로 확정</td></tr>
+    <tr><td><b>개념·논리</b></td><td><span class="t" data-t="law998">민법 제998조의2</span> · <span class="t" data-t="law1000">제1000~1003조</span></td>
+        <td>예외인출 엔터티 도출, 신청인 자격 도메인을 <b>법정 상속순위</b>로 제한</td></tr>
+    <tr><td><b>물리 스키마</b></td><td><span class="t" data-t="efta22">전자금융거래법 제22조</span> · <span class="t" data-t="pipa24">개인정보보호법 제24조의2</span></td>
+        <td>법정 필수 컬럼 배치, 보존연한 확정, <b>해시와 암호문 분리</b> 저장</td></tr>
+    <tr><td><b>업무 규칙</b></td><td><span class="t" data-t="frn3">금융실명법 제3조</span> · <span class="t" data-t="frn4">제4조</span></td>
+        <td>규칙 테이블 분리, 오매칭 <b>권리구제</b> 이력, 수취처 직수령 금지</td></tr>
+    <tr><td><b>검증·정보계</b></td><td><span class="t" data-t="efsr13">전자금융감독규정 제13조</span></td>
+        <td>접근 감사로그에 조회 주체·목적·성공여부를 강제 저장</td></tr>
+  </table>
+  <div class="hint"><b>ⓘ</b> 국가법령정보센터 현행본에서 조문을 직접 확인해 반영했습니다</div>
+  </div>
+  <footer><span class="who">A</span><span></span></footer>
+</section>
+
+<!-- 5 -->
+<section class="slide" data-note="A · 1.5분. 서버1 → 데이터베이스5 → 테이블30 의 3층 구조를 손으로 짚으며 설명. 화살표 방향이 핵심.">
+  <div class="kicker">전체 구조</div>
+  <h2>MySQL 서버 1대 · 데이터베이스 5개 · 테이블 30개</h2>
+  <p class="lede">실제 은행은 역할에 따라 시스템을 나눕니다. 그 구조를 하나의 MySQL 서버 안에서 <b>데이터베이스(스키마)를 나누는 방식</b>으로 재현했습니다.</p>
+  <div class="body">
+    <div style="display:flex;align-items:stretch;gap:10px;margin-bottom:14px">
+      <div class="card" style="flex:none;width:150px;padding:12px;text-align:center">
+        <span class="lab">외부</span><p class="sm">행정안전부<br>한국신용정보원</p></div>
+      <div style="display:flex;align-items:center;color:var(--faint);font-size:18px">→</div>
+      <div class="card" style="flex:1;padding:12px 14px"><span class="lab">대외계 · ext_link · 3개</span>
+        <p class="xs mono mute">ext_death_file · ext_death_record · ext_inquiry_log</p>
+        <p class="xs" style="margin-top:5px">받은 데이터를 <b>가공하지 않고</b> 보관</p></div>
+      <div style="display:flex;align-items:center;color:var(--faint);font-size:18px">→</div>
+      <div class="card a" style="flex:1.1;padding:12px 14px"><span class="lab">계정계 · core_bank · 15개</span>
+        <p class="xs mono">cust · acct · acct_txn · death_block · block_rule · exc_* · payee_registry</p>
+        <p class="xs" style="margin-top:5px">잔액과 거래를 <b>실제로 움직이는</b> 원장</p></div>
+    </div>
+    <div style="display:flex;align-items:stretch;gap:10px">
+      <div class="card" style="flex:none;width:150px;padding:12px;text-align:center">
+        <span class="lab">고객 접점</span><p class="sm">창구 · ATM<br>모바일 · 오픈뱅킹</p></div>
+      <div style="display:flex;align-items:center;color:var(--faint);font-size:18px">→</div>
+      <div class="card" style="flex:1;padding:12px 14px;background:#fff8f0;border-color:#ecdcc9">
+        <span class="lab" style="color:var(--hl)">채널계 · channel · 3개</span>
+        <p class="xs mono mute">chnl_request · chnl_response · chnl_block_decision</p>
+        <p class="xs" style="margin-top:5px">요청을 받아 계정계에 전달하고 결과를 반환</p></div>
+      <div style="display:flex;align-items:center;color:var(--faint);font-size:18px">→</div>
+      <div class="card k" style="flex:1.1;padding:12px 14px"><span class="lab">정보계 · info_mart · 4개</span>
+        <p class="xs mono">audit_death_access · stat_block_daily · stat_exception_daily · stat_mismatch</p>
+        <p class="xs" style="margin-top:5px">영업 종료 후 <b>일배치로 집계</b>. 개인정보 미보관</p></div>
+    </div>
+    <div class="card" style="margin-top:14px;padding:12px 16px;background:#f7f4fa;border-color:#ddd2e8">
+      <span class="lab" style="color:#6b4a86">공통 · comm_code · 5개</span>
+      <p class="sm"><code>code_group</code> <code>code_detail</code> <code>rsp_code</code> <code>org_code</code> <code>biz_calendar</code>
+      — <b>위 네 계층이 모두 참조</b>합니다. 코드명과 응답 메시지가 여기 한 곳에만 존재합니다.</p></div>
+    <div class="hint"><b>ⓘ</b> 계층 <b>내부</b>는 FK로 묶고, 계층 <b>사이</b>는 값만 전달합니다 — 자세한 내용은 슬라이드 13</div>
+  </div>
+  <footer><span class="who">A</span><span></span></footer>
+</section>
+
+<!-- 6 -->
+<section class="slide" data-note="A · 1.5분. 각 단계에서 어느 테이블에 행이 생기는지가 곧 그 테이블의 존재 이유. 뱃지로 계층을 표시했다.">
+  <div class="kicker">전체 흐름</div>
+  <h2>데이터가 쌓이는 순서</h2>
+  <p class="lede">사망신고부터 집계까지, 각 단계에서 <b>어느 테이블에 행이 생기는지</b>가 곧 그 테이블이 존재하는 이유입니다.</p>
+  <div class="body cols" style="gap:26px">
+    <div>
+      <table class="tight">
+        <tr><th style="width:7%"></th><th style="width:38%">일어나는 일</th><th>행이 생기는 곳</th></tr>
+        <tr><td><b>1</b></td><td>새벽 1시, 사망자 파일 수신</td>
+            <td class="xs"><span class="tb tb-ext">대외</span><span class="mono">ext_death_file</span><br><span class="tb tb-ext">대외</span><span class="mono">ext_death_record</span></td></tr>
+        <tr><td><b>2</b></td><td><span class="t" data-t="hashmatch">해시로 고객 매칭</span></td>
+            <td class="xs"><span class="tb tb-ext">대외</span><span class="mono">ext_death_record</span><br><span class="mute xs">match_status_cd 갱신</span></td></tr>
+        <tr><td><b>3</b></td><td>차단 생성<br><span class="xs mute">신고일+1일 00:00 산출</span></td>
+            <td class="xs"><span class="tb tb-core">계정</span><span class="mono">death_block</span><br><span class="tb tb-core">계정</span><span class="mono">death_block_hist</span><br><span class="tb tb-core">계정</span><span class="mono">cust_status_hist</span><br><span class="tb tb-core">계정</span><span class="mono">acct_status_hist</span></td></tr>
+        <tr><td><b>4</b></td><td>사망정보를 조회했다는 사실</td>
+            <td class="xs"><span class="tb tb-info">정보</span><span class="mono">audit_death_access</span></td></tr>
+        <tr><td><b>5</b></td><td>ATM 출금 시도 → 차단</td>
+            <td class="xs"><span class="tb tb-chnl">채널</span><span class="mono">chnl_request</span><br><span class="tb tb-chnl">채널</span><span class="mono">chnl_block_decision</span><br><span class="tb tb-chnl">채널</span><span class="mono">chnl_response</span></td></tr>
+      </table>
+    </div>
+    <div>
+      <table class="tight">
+        <tr><th style="width:7%"></th><th style="width:38%">일어나는 일</th><th>행이 생기는 곳</th></tr>
+        <tr><td><b>6</b></td><td>타행에서 입금 → 허용</td>
+            <td class="xs"><span class="tb tb-core">계정</span><span class="mono">acct_txn</span><br><span class="tb tb-core">계정</span><span class="mono">acct</span> <span class="mute">balance_amt 갱신</span></td></tr>
+        <tr><td><b>7</b></td><td>자동이체일 도래 → 실패</td>
+            <td class="xs"><span class="tb tb-core">계정</span><span class="mono">auto_transfer_result</span></td></tr>
+        <tr><td><b>8</b></td><td>유가족이 장례비 신청<br><span class="xs mute">서류 → 2단계 승인 → 이체</span></td>
+            <td class="xs"><span class="tb tb-core">계정</span><span class="mono">exc_request</span> → <span class="tb tb-core">계정</span><span class="mono">exc_document</span><br>→ <span class="tb tb-core">계정</span><span class="mono">exc_approval</span> → <span class="tb tb-core">계정</span><span class="mono">exc_payout</span><br>+ <span class="tb tb-core">계정</span><span class="mono">acct_txn</span></td></tr>
+        <tr><td><b>9</b></td><td>오매칭 판명 → 차단 해제</td>
+            <td class="xs"><span class="tb tb-core">계정</span><span class="mono">death_block</span> <span class="mute">갱신</span><br><span class="tb tb-core">계정</span><span class="mono">death_block_hist</span><br><span class="tb tb-core">계정</span><span class="mono">cust_status_hist</span></td></tr>
+        <tr><td><b>10</b></td><td><span class="t" data-t="nightbatch">영업 종료 후 야간 집계</span></td>
+            <td class="xs"><span class="tb tb-info">정보</span><span class="mono">stat_block_daily</span><br><span class="tb tb-info">정보</span><span class="mono">stat_exception_daily</span><br><span class="tb tb-info">정보</span><span class="mono">stat_mismatch</span></td></tr>
+      </table>
+      <div class="card" style="margin-top:10px;padding:11px 15px"><span class="lab">읽기만 하는 테이블</span>
+        <p class="xs"><span class="tb tb-core">계정</span><span class="mono">block_rule</span> <span class="tb tb-core">계정</span><span class="mono">payee_registry</span> <span class="tb tb-comm">공통</span><span class="mono">code_detail</span> <span class="tb tb-comm">공통</span><span class="mono">rsp_code</span> <span class="tb tb-comm">공통</span><span class="mono">org_code</span> <span class="tb tb-comm">공통</span><span class="mono">biz_calendar</span></p></div>
+    </div>
+  </div>
+  <footer><span class="who">A</span><span></span></footer>
+</section>
+
+<!-- 7 -->
+<section class="slide" data-note="A · 1.5분. 읽기 3개 / 쓰기 4개. 차단이 없으면 규칙은 조회하지 않는다는 순서를 강조.">
+  <div class="kicker">핵심 영역</div>
+  <h2>거래 한 건이 처리되는 순서</h2>
+  <p class="lede">출금 요청이 들어오면 <b>세 곳을 읽어</b> 판정하고, <b>네 곳에 기록</b>합니다.</p>
+  <div class="body cols">
+    <div>
+      <div class="card a" style="padding:14px 18px"><span class="lab">읽는 것 — 판정에 필요한 3곳</span>
+      <table class="tight" style="margin-top:4px">
+        <tr><td style="width:40%;padding:7px 0"><span class="tb tb-core">계정</span><b class="mono" style="font-size:14px">ACCT</b></td>
+            <td style="padding:7px 0"><code>cust_no</code> 예금주<br><code>balance_amt</code> 잔액</td></tr>
+        <tr><td style="padding:7px 0"><span class="tb tb-core">계정</span><b class="mono" style="font-size:14px">DEATH_BLOCK</b></td>
+            <td style="padding:7px 0"><code>block_status_cd</code> 차단중인가<br><code>block_start_dtm</code> 지났는가</td></tr>
+        <tr><td style="padding:7px 0;border-bottom:none"><span class="tb tb-core">계정</span><b class="mono" style="font-size:14px">BLOCK_RULE</b></td>
+            <td style="padding:7px 0;border-bottom:none"><code>allow_yn</code> 이 유형은 허용인가</td></tr>
+      </table></div>
+      <div class="card w" style="margin-top:12px;padding:12px 18px"><span class="lab">순서가 중요하다</span>
+        <p class="sm">차단이 없으면 <b>규칙은 조회하지 않습니다.</b></p></div>
+    </div>
+    <div>
+      <div class="card k" style="padding:14px 18px"><span class="lab">쓰는 것 — 결과가 남는 4곳</span>
+      <table class="tight" style="margin-top:4px">
+        <tr><td style="width:56%;padding:7px 0"><span class="tb tb-chnl">채널</span><b class="mono" style="font-size:13.5px">CHNL_BLOCK_DECISION</b></td>
+            <td style="padding:7px 0"><b>항상</b> · 허용도 기록</td></tr>
+        <tr><td style="padding:7px 0"><span class="tb tb-core">계정</span><b class="mono" style="font-size:13.5px">ACCT_TXN</b></td>
+            <td style="padding:7px 0">허용일 때만 기표</td></tr>
+        <tr><td style="padding:7px 0"><span class="tb tb-core">계정</span><b class="mono" style="font-size:13.5px">ACCT.balance_amt</b></td>
+            <td style="padding:7px 0">허용일 때만 갱신</td></tr>
+        <tr><td style="padding:7px 0;border-bottom:none"><span class="tb tb-info">정보</span><b class="mono" style="font-size:13.5px">AUDIT_DEATH_ACCESS</b></td>
+            <td style="padding:7px 0;border-bottom:none"><b>항상</b> · 조회 사실 기록</td></tr>
+      </table></div>
+      <div class="card" style="margin-top:12px;padding:12px 18px"><span class="lab">차단돼도 기록은 남는다</span>
+        <p class="sm">원장에는 없지만 판정이력과 감사로그에는 남습니다. 원장과 시도 이력을 분리한 이유입니다.</p></div>
+    </div>
+  </div>
+  <footer><span class="who">A</span><span></span></footer>
+</section>
+
+<!-- ERD 탐색기 슬라이드 -->
+<section class="slide erdslide" data-note="A · 30초. 클릭하거나 E키를 눌러 ERD 탐색기를 연다. 스키마별 필터와 FK 추적이 가능하니 질문 대응에 활용.">
+  <div class="kicker">전체 ERD</div>
+  <h2>30개 테이블 · 101개 FK 컬럼</h2>
+  <p class="lede">아래를 클릭하거나 <b>E 키</b>를 누르면 전체 화면 ERD 탐색기가 열립니다. 스키마별로 보거나, FK가 어디서 왔는지 추적할 수 있습니다.</p>
+  <div class="body">
+    <div id="erdLaunch" style="flex:1;border:2px dashed var(--accent-line);border-radius:14px;
+         background:var(--accent-soft);display:flex;flex-direction:column;align-items:center;
+         justify-content:center;cursor:pointer;gap:14px">
+      <div style="font-size:46px">🗂️</div>
+      <div style="font-size:22px;font-weight:700;color:var(--accent)">ERD 탐색기 열기</div>
+      <div style="font-size:15px;color:var(--mute)">스키마 필터 · 컬럼 검색 · FK 출처 추적</div>
+      <div class="big" style="margin-top:10px;gap:34px">
+        <div><div class="n" style="font-size:30px">30</div><div class="l">테이블</div></div>
+        <div><div class="n" style="font-size:30px">322</div><div class="l">컬럼</div></div>
+        <div><div class="n" style="font-size:30px">101</div><div class="l">FK 컬럼</div></div>
+        <div><div class="n" style="font-size:30px">5</div><div class="l">스키마</div></div>
+      </div>
+    </div>
+  </div>
+  <footer><span class="who">A</span><span></span></footer>
+</section>
+
+<!-- 8 -->
+<section class="slide" data-note="A · 1분. 1부의 클라이맥스. 사망일과 신고일이 다르다는 것을 반드시 짚는다.">
+  <div class="kicker">설계 결정 ①</div>
+  <h2>차단 기준일은 사망일이 아니다</h2>
+  <p class="lede">사망신고 기한은 1개월입니다. 사망일로 차단하면 아직 신고되지 않은 사망을 은행이 알 수 없어 제도가 성립하지 않습니다.</p>
+  <div class="body cols">
+    <div>
+      <table>
+        <tr><th>구분</th><th>값</th></tr>
+        <tr><td>사망일자</td><td class="mono">2026-09-10</td></tr>
+        <tr><td>사망 <b>신고</b>일자</td><td class="mono">2026-09-12</td></tr>
+        <tr><td><b>차단개시일시</b></td><td class="mono"><b>2026-09-13 00:00:00</b></td></tr>
+      </table>
+      <div class="card k" style="margin-top:20px"><span class="lab">얻은 것</span>
+        <p class="sm">어떤 경로로 데이터가 들어와도 틀린 차단 시각이 저장될 수 없습니다.</p></div>
+    </div>
+    <div>
+      <pre><span class="c">-- 애플리케이션이 아니라 DB가 강제한다</span>
+<span class="k t" data-t="constraint">CONSTRAINT</span> ck_block_start <span class="k t" data-t="check">CHECK</span> (
+  block_start_dtm =
+    <span class="h">TIMESTAMP(DATE_ADD(</span>
+      death_report_dt,
+      <span class="k">INTERVAL</span> 1 <span class="k">DAY</span><span class="h">))</span>
+)</pre>
+    </div>
+  </div>
+  <footer><span class="who">A</span><span></span></footer>
+</section>
+
+<!-- 9 -->
+<section class="slide" data-note="B 시작. 인수인계: '여기서부터는 제가 설계 판단을 말씀드리겠습니다.' 코드는 클릭해서 설명 가능.">
+  <div class="kicker">설계 결정 ②</div>
+  <h2>업무 규칙을 코드가 아닌 데이터로
+    <span style="font-size:15px;font-weight:600;color:var(--mute);letter-spacing:0">
+      &nbsp;[ block_rule 테이블 조회 예시 ]</span></h2>
+  <p class="lede">아래 표는 컬럼 목록이 아니라 <b><code>block_rule</code> 테이블에 실제로 들어 있는 7개 행</b>입니다. 거래유형 코드를 클릭하면 설명이 열립니다.</p>
+  <div class="body cols w60">
+    <div>
+      <table class="tight">
+        <tr><th style="width:34%">거래유형</th><th>방향</th><th>허용</th><th>예외인출</th><th>응답코드</th></tr>
+        <tr><td><span class="pill" data-t="DEP">DEP</span> 입금</td><td>들어옴</td><td style="color:var(--ok);font-weight:700">허용</td><td class="mute">—</td><td class="mute">—</td></tr>
+        <tr><td><span class="pill" data-t="TRI">TRI</span> 이체입금</td><td>들어옴</td><td style="color:var(--ok);font-weight:700">허용</td><td class="mute">—</td><td class="mute">—</td></tr>
+        <tr><td><span class="pill" data-t="WDR">WDR</span> 출금</td><td>나감</td><td style="color:var(--hl);font-weight:700">차단</td><td>가능</td><td class="mono">D001</td></tr>
+        <tr><td><span class="pill" data-t="TRO">TRO</span> 이체출금</td><td>나감</td><td style="color:var(--hl);font-weight:700">차단</td><td>가능</td><td class="mono">D001</td></tr>
+        <tr><td><span class="pill" data-t="ATO">ATO</span> 자동이체</td><td>나감</td><td style="color:var(--hl);font-weight:700">차단</td><td class="mute">불가</td><td class="mono">D002</td></tr>
+        <tr><td><span class="pill" data-t="CLS">CLS</span> 계좌해지</td><td>나감</td><td style="color:var(--hl);font-weight:700">차단</td><td class="mute">불가</td><td class="mono">D003</td></tr>
+        <tr><td><span class="pill" data-t="LON">LON</span> 대출실행</td><td>나감</td><td style="color:var(--hl);font-weight:700">차단</td><td class="mute">불가</td><td class="mono">D004</td></tr>
+      </table>
+      <div class="hint"><b>ⓘ</b> 거래유형 <code>txn_type_cd</code> · 방향 <code>dr_cr_cd</code> · 허용 <code>allow_yn</code> · 예외 <code>exception_possible_yn</code> · 응답 <code>reject_rsp_cd</code></div>
+    </div>
+    <div class="stack">
+      <div class="card a"><span class="lab">핵심</span>
+        <p class="sm">이 표는 <b>문서가 아니라 테이블</b>입니다. 규정이 바뀌면 코드를 고치고 재배포하는 대신 <code>UPDATE</code> 한 줄로 끝납니다.</p></div>
+      <div class="card"><span class="lab">적용 기간을 갖는다</span>
+        <p class="sm">규칙을 수정하지 않고 <b>종료일을 끊고 새 행을 추가</b>합니다. 과거 판정의 근거가 보존됩니다.</p></div>
+      <div class="card"><span class="lab">응답코드는 어디에 있나</span>
+        <p class="sm">코드 자체는 <code>comm_code.<span class="t" data-t="rspcode">rsp_code</span></code> 한 곳에만 있고, 쓰는 쪽은 <b>코드 값만</b> 갖고 FK로 참조합니다. 참조하는 컬럼이 <b>7개</b>입니다.</p></div>
+      <div class="card w"><span class="lab">모순도 DB가 막는다</span>
+        <p class="sm"><span class="t" data-t="ckrule">CHECK 제약 하나</span>로 "허용인데 거절코드가 있는" 모순된 규칙이 저장되지 않습니다.</p></div>
+    </div>
+  </div>
+  <footer><span class="who">B</span><span></span></footer>
+</section>
+
+<!-- 10 -->
+<section class="slide" data-note="B · 1분. 상태와 테이블 모두 클릭 가능. 돈이 유가족에게 가지 않는다는 점이 핵심.">
+  <div class="kicker">예외 인출</div>
+  <h2>치료비·장례비는 어떻게 처리하나</h2>
+  <p class="lede">상태와 테이블 이름을 클릭하면 각 단계의 의미와 테이블 속성을 볼 수 있습니다.</p>
+  <div class="body">
+    <div class="flow">
+      <div class="n"><b class="pill" data-t="REQ">REQ</b><span style="display:block;margin-top:5px">접수</span></div><div class="a">→</div>
+      <div class="n"><b class="pill" data-t="DOC">DOC</b><span style="display:block;margin-top:5px">서류검토</span></div><div class="a">→</div>
+      <div class="n"><b class="pill" data-t="APV">APV</b><span style="display:block;margin-top:5px">승인</span></div><div class="a">→</div>
+      <div class="n"><b class="pill" data-t="PAY">PAY</b><span style="display:block;margin-top:5px">이체실행</span></div><div class="a">→</div>
+      <div class="n"><b class="pill" data-t="CMP">CMP</b><span style="display:block;margin-top:5px">완료</span></div>
+      <div class="a" style="padding:0 10px">／</div>
+      <div class="n alt"><b class="pill" data-t="REJ" style="background:var(--hl-soft);color:var(--hl);border-color:#ecdcc9">REJ</b><span style="display:block;margin-top:5px">반려</span></div>
+    </div>
+    <div class="cols" style="margin-top:6px">
+      <div>
+        <table class="tight">
+          <tr><th style="width:46%">테이블</th><th>역할</th></tr>
+          <tr><td><span class="tb tb-core">계정</span><span class="pill" data-t="tbl_req">EXC_REQUEST</span></td><td>신청 1건의 전체 상태</td></tr>
+          <tr><td><span class="tb tb-core">계정</span><span class="pill" data-t="tbl_doc">EXC_DOCUMENT</span></td><td>증빙서류 N건과 검증결과</td></tr>
+          <tr><td><span class="tb tb-core">계정</span><span class="pill" data-t="tbl_apv">EXC_APPROVAL</span></td><td>차수별 승인 이력</td></tr>
+          <tr><td><span class="tb tb-core">계정</span><span class="pill" data-t="tbl_pay">EXC_PAYOUT</span></td><td>실제 지급 1건</td></tr>
+          <tr><td><span class="tb tb-core">계정</span><span class="pill" data-t="tbl_payee">PAYEE_REGISTRY</span></td><td>사전 등록된 병원·장례식장</td></tr>
+        </table>
+        <div class="hint"><b>ⓘ</b> 테이블 이름을 클릭하면 속성과 역할이 열립니다</div>
+      </div>
+      <div class="card w"><span class="lab">제도의 핵심</span>
+        <h3>돈은 유가족에게 가지 않는다</h3>
+        <p class="sm">승인되어도 <b>병원·장례식장 계좌로 직접 이체</b>됩니다. 본인 현금 인출이 아닙니다.</p>
+        <p class="sm" style="margin-top:10px">이 원칙을 애플리케이션 코드가 아니라 <b>스키마로 강제</b>한 것이 다음 장입니다.</p></div>
+    </div>
+  </div>
+  <footer><span class="who">B</span><span></span></footer>
+</section>
+
+<!-- 11 -->
+<section class="slide" data-note="B · 2분. 발표의 하이라이트. 문 3개 비유로 설명하고 마지막에 오류 메시지로 마무리.">
+  <div class="kicker">설계 결정 ③</div>
+  <h2>규칙을 코드가 아니라 DB에 새긴다</h2>
+  <p class="lede">지켜야 할 정책은 하나입니다. <b>예외인출 대금은 등록된 병원·장례식장으로만 나간다.</b> 이걸 어디서 막느냐가 문제입니다.</p>
+  <div class="body cols" style="gap:30px">
+    <div class="stack">
+      <div class="card w"><span class="lab">보통은 이렇게 막는다</span>
+        <h3>애플리케이션 코드에서</h3>
+        <pre style="font-size:13px;margin-top:8px"><span class="k">if</span> (!payeeRepo.exists(payeeId)) {
+    <span class="k">throw new</span> Exception(<span class="s">"미등록 수취처"</span>);
+}</pre>
+        <p class="sm" style="margin-top:9px">문제는 <b>이 코드를 거치지 않는 경로</b>가 존재한다는 것입니다.</p>
+      </div>
+      <div class="card"><span class="lab">DB에 들어오는 경로는 하나가 아니다</span>
+        <table class="tight" style="margin-top:2px">
+          <tr><td style="width:44%;padding:6px 0">창구 애플리케이션</td><td style="padding:6px 0">검증 코드 있음</td></tr>
+          <tr><td style="padding:6px 0">야간 배치 프로그램</td><td style="padding:6px 0" class="no-b">다른 팀이 만듦</td></tr>
+          <tr><td style="padding:6px 0">운영자의 DB 콘솔</td><td style="padding:6px 0" class="no-b">코드를 안 거침</td></tr>
+          <tr><td style="padding:6px 0;border-bottom:none">데이터 이관 스크립트</td><td style="padding:6px 0;border-bottom:none" class="no-b">일회성이라 검증 생략</td></tr>
+        </table>
+        <p class="sm" style="margin-top:8px">코드로 막으면 <b>첫 번째 경로만</b> 지켜집니다.</p></div>
+    </div>
+    <div class="stack">
+      <div class="card k"><span class="lab">우리가 택한 방법</span>
+        <h3>DB가 직접 거절하게 한다</h3>
+        <pre style="font-size:13px;margin-top:8px">payee_id <span class="k">BIGINT</span> <span class="h">NOT NULL</span>,
+
+<span class="k">CONSTRAINT</span> fk_expay_payee
+  <span class="k">FOREIGN KEY</span> (payee_id)
+  <span class="k">REFERENCES</span> <span class="h">payee_registry</span> (payee_id)</pre>
+        <p class="sm" style="margin-top:9px"><b>NOT NULL</b> — 비워 둘 수 없다<br>
+        <b>FOREIGN KEY</b> — 등록된 수취처가 아니면 값이 될 수 없다</p>
+        <p class="sm" style="margin-top:8px">두 제약이 함께 있어야 합니다. NULL은 FK 검사를 통과하기 때문입니다.</p></div>
+      <div class="card a"><span class="lab">결과</span>
+        <p class="sm">어느 경로로 들어오든 <b>DB 엔진이 트랜잭션을 거절</b>합니다. 상속인 개인계좌 번호가 들어갈 자리 자체가 스키마에 없습니다.</p>
+        <p class="xs mono" style="margin-top:8px;color:var(--hl)">ERROR 1452: a foreign key constraint fails<br>(`exc_payout`, CONSTRAINT `fk_expay_payee`)</p></div>
+    </div>
+  </div>
+  <footer><span class="who">B</span><span></span></footer>
+</section>
+
+<!-- 12 -->
+<section class="slide" data-note="B · 1분. FK를 안 건 것도 설계 판단이라는 점을 강조.">
+  <div class="kicker">설계 결정 ④</div>
+  <h2>FK를 걸지 않은 것도 설계다</h2>
+  <p class="lede">전체 67개 <span class="t" data-t="fk">FOREIGN KEY</span> 중 아래 6개만 의도적으로 제외했습니다.</p>
+  <div class="body">
+  <table class="tight">
+    <tr><th style="width:38%">관계</th><th>FK를 걸지 않은 이유</th></tr>
+    <tr><td class="mono">EXT_DEATH_RECORD → CUST</td><td>대외계 원천을 재적재·정리할 때 계정계가 막히면 안 됨</td></tr>
+    <tr><td class="mono">EXT_DEATH_RECORD → DEATH_BLOCK</td><td>동일</td></tr>
+    <tr><td class="mono"><b>CHNL_REQUEST.acct_no</b></td><td><b>존재하지 않는 계좌번호로 들어온 요청도 기록</b>되어야 함 — FK를 걸면 공격 시도를 추적할 수 없음</td></tr>
+    <tr><td class="mono">AUDIT_DEATH_ACCESS.target_cust_no</td><td>감사로그는 대상이 사라져도 남아야 함</td></tr>
+    <tr><td class="mono">CHNL_BLOCK_DECISION.applied_rule_id</td><td>규칙이 폐기돼도 과거 판정 이력은 보존되어야 함</td></tr>
+    <tr><td class="mono">BLOCK_RULE → ACCT_TXN</td><td>판정 시점의 참조. 규칙 폐기 후에도 과거 거래는 존재</td></tr>
+  </table>
+  </div>
+  <footer><span class="who">B</span><span></span></footer>
+</section>
+
+<!-- 13 -->
+<section class="slide" data-note="B · 1.5분. NULL 대신 9999를 쓴 진짜 이유가 UNIQUE라는 점.">
+  <div class="kicker">설계 결정 ⑤</div>
+  <h2>이력은 왜 9999-12-31로 닫는가</h2>
+  <p class="lede">고객 상태가 바뀔 때마다 기존 행을 남기고 새 행을 추가하는 <span class="t" data-t="scd">SCD Type 2</span> 방식을 썼습니다.</p>
+  <div class="body cols">
+    <div>
+      <pre><span class="k">valid_to_dtm DATETIME</span>(3) <span class="k">NOT NULL</span>
+  <span class="k">DEFAULT</span> <span class="s">'9999-12-31 23:59:59.999'</span>,
+
+<span class="k t" data-t="unique">UNIQUE KEY</span> uk_cust_hist_current
+  (cust_no, <span class="h">valid_to_dtm</span>)</pre>
+      <p class="sm mute" style="margin-top:16px">현재 유효한 행은 종료일시를 <span class="t" data-t="sentinel">센티널 값</span>으로 채웁니다.</p>
+    </div>
+    <div class="stack">
+      <div class="card w"><span class="lab">NULL로 두면 안 되는 이유</span>
+        <p class="sm">MySQL의 UNIQUE는 <b><span class="t" data-t="nullunique">NULL을 서로 다른 값으로 취급</span></b>해 중복을 허용합니다. NULL이면 "현재 행"이 여러 개여도 막히지 않습니다.</p></div>
+      <div class="card k"><span class="lab">센티널을 쓰면</span>
+        <p class="sm">고객당 현재 행이 <b>정확히 1건</b>임을 DB가 보장합니다. 배치가 두 번 돌아도 안전합니다.</p></div>
+      <p class="xs mute">다만 <code>close_dt</code>처럼 "구간의 끝"이 아니라 "사건의 발생 여부"를 뜻하는 컬럼은 NULL이 맞습니다. 센티널을 넣으면 평균 존속기간 같은 집계가 왜곡됩니다.</p>
+    </div>
+  </div>
+  <footer><span class="who">B</span><span></span></footer>
+</section>
+
+<!-- NEW : 정규화 수준 -->
+<section class="slide" data-note="B · 1.5분. 정규화를 어디까지 했는지 테이블 단위로 점검했다는 것을 보여주는 장. 교과목 평가 핵심.">
+  <div class="kicker">정규화</div>
+  <h2>우리 모델은 어디까지 정규화됐나</h2>
+  <p class="lede">30개 테이블 전부 <span class="t" data-t="nf3">제3정규형</span>을 만족합니다. 단계별로 무엇을 제거했는지 점검했습니다.</p>
+  <div class="body">
+  <table class="tight">
+    <tr><th style="width:9%">단계</th><th style="width:26%">제거 대상</th><th>우리 모델에서 실제로 한 일</th></tr>
+    <tr><td><span class="t" data-t="nf1">1NF</span></td><td>다중값 · 반복 속성</td>
+        <td>증빙서류를 <code>EXC_DOCUMENT</code>로, 승인을 <code>EXC_APPROVAL</code>로 분리해 <b>한 건당 한 행</b>으로</td></tr>
+    <tr><td><span class="t" data-t="nf2">2NF</span></td><td><span class="t" data-t="fd">부분 함수 종속</span></td>
+        <td>복합키는 <code>CODE_DETAIL(group_cd, code_cd)</code> 하나뿐이며, <code>code_nm</code>은 두 컬럼이 모두 있어야 결정됨</td></tr>
+    <tr><td><span class="t" data-t="nf3">3NF</span></td><td>이행 함수 종속</td>
+        <td>기관명·코드명·응답메시지를 원장에 두지 않고 <b>코드만 저장</b>해 조인. 코드 테이블 5종이 이 역할</td></tr>
+    <tr><td><span class="t" data-t="bcnf">BCNF</span></td><td>비후보키 결정자</td>
+        <td>모든 결정자가 후보키. 별도 조치 불필요</td></tr>
+  </table>
+  <div class="cols" style="margin-top:18px">
+    <div class="card k"><span class="lab">정규화가 만들어낸 테이블</span>
+      <p class="sm"><b>30개 중 12개</b>가 정규화 과정에서 분리된 것입니다. 이력 3종, 예외인출 4종, 코드 5종.</p></div>
+    <div class="card w"><span class="lab">되돌린 것</span>
+      <p class="sm"><b>3개 컬럼</b>만 <span class="t" data-t="denorm">의도적 반정규화</span>로 예외 처리했습니다. 근거와 대가는 다음 장에서.</p></div>
+  </div>
+  </div>
+  <footer><span class="who">B</span><span></span></footer>
+</section>
+
+<!-- NEW : 규제 물리설계 -->
+<section class="slide" data-note="B · 1.5분. 법령이 컬럼과 제약으로 바뀐 사례. 파티셔닝 충돌은 직접 검증한 내용이라 강하게 말할 것.">
+  <div class="kicker">설계 결정 ⑥</div>
+  <h2>법령이 컬럼과 제약이 되다</h2>
+  <p class="lede">규제 요건을 문서로만 정리하지 않고 실제 스키마에 반영했습니다.</p>
+  <div class="body">
+  <table class="tight">
+    <tr><th style="width:26%">법령 요건</th><th style="width:34%">반영</th><th>이유</th></tr>
+    <tr><td><span class="t" data-t="pipa24">개인정보보호법<br>제24조의2</span></td>
+        <td><code>rrn_hash CHAR(64)</code><br><code>rrn_enc VARBINARY(128)</code></td>
+        <td>검색용 해시와 저장용 암호문을 <b>분리</b>. 해시는 되돌릴 수 없어 매칭만 가능</td></tr>
+    <tr><td><span class="t" data-t="efta22">전자금융거래법<br>제22조</span></td>
+        <td><code>terminal_id</code> 추가</td>
+        <td>거래 추적·오류 정정에 필요한 법정 기록 항목</td></tr>
+    <tr><td><span class="t" data-t="credit20">신용정보법<br>제20조의2</span></td>
+        <td><code>cust.close_dt</code></td>
+        <td>상거래관계 종료일. <b>보존기간 5년의 기산점</b></td></tr>
+  </table>
+  <div class="card w" style="margin-top:18px"><span class="lab">채택하지 않은 것</span>
+    <h3><span class="t" data-t="partition">연 단위 파티셔닝</span>은 포기했습니다</h3>
+    <p class="sm">보존연한 관리에는 유리하지만, MySQL InnoDB는 <b>파티션 테이블에 FK를 걸 수 없습니다</b>. 실제로 시도하면 <code>ERROR 1506</code>이 납니다. 67개 FK로 얻은 참조 무결성을 포기할 수 없어 <b>아카이브 테이블 이관 방식</b>으로 대체했습니다.</p></div>
+  </div>
+  <footer><span class="who">B</span><span></span></footer>
+</section>
+
+<!-- 14 -->
+<section class="slide" data-note="B · 1분. 이유는 성능과 시점고정 둘뿐. 보안이나 교차검증이 목적이 아니라는 점을 분명히 말할 것.">
+  <div class="kicker">정규화</div>
+  <h2><span class="t" data-t="denorm">의도적 반정규화</span> 3건</h2>
+  <p class="lede">이유는 두 가지뿐입니다. <b>조회 성능</b>과 <b>판정 시점의 값 고정</b>.</p>
+  <div class="body">
+  <table class="tight">
+    <tr><th style="width:24%">컬럼</th><th style="width:13%">이유</th><th style="width:34%">왜 중복을 허용했나</th><th>지불한 대가</th></tr>
+    <tr><td class="mono">ACCT<br>.balance_amt</td><td><span class="chip">성능</span></td>
+        <td>거래원장 합계로 구할 수 있지만, 20년치가 쌓이면 잔액 조회 한 번에 수만 행을 훑어야 함</td>
+        <td>잔액–원장 <b>대사 쿼리</b>가 필요해짐</td></tr>
+    <tr><td class="mono">ACCT_TXN<br>.balance_after_amt</td><td><span class="chip g">시점</span></td>
+        <td>그 거래 <b>직후</b>의 잔액을 재계산 없이 답하기 위해. 오픈뱅킹 거래내역조회 API 응답 필드와도 일치</td>
+        <td>원장 수정 시 재계산 필요</td></tr>
+    <tr><td class="mono">DEATH_BLOCK<br>.death_report_dt</td><td><span class="chip g">시점</span></td>
+        <td>원천이 정정·재전송돼도 <b>판정에 실제로 쓴 값</b>은 바뀌면 안 됨</td>
+        <td>원천과 불일치 가능 → 정합성 점검</td></tr>
+  </table>
+  <div class="cols" style="margin-top:18px">
+    <div class="card w"><span class="lab">오해하기 쉬운 것</span>
+      <p class="sm">보안이나 교차검증이 <b>목적이 아닙니다.</b> 중복을 만들었기 때문에 어긋날 위험이 생겼고, 그래서 대사 쿼리가 <b>필요해진</b> 것입니다.</p>
+      <p class="xs mute" style="margin-top:7px"><b>판단 기준 3가지</b> — ① 조회가 쓰기보다 훨씬 잦은가 ② 재계산 비용이 데이터 증가에 비례하는가 ③ 어긋남을 검증할 방법이 있는가. 셋을 모두 만족할 때만 허용했습니다.</p></div>
+    <div class="card a"><span class="lab">반정규화가 아닌 것</span>
+      <p class="sm"><code>payee_id</code>가 <code>EXC_REQUEST</code>와 <code>EXC_PAYOUT</code> 양쪽에 있는 것은 <b>의미가 다른 별개 컬럼</b>입니다. 신청 시 지정한 곳과 실제 지급한 곳. 이건 교차검증이 목적이 맞습니다.</p></div>
+  </div>
+  </div>
+  <footer><span class="who">B</span><span></span></footer>
+</section>
+
+<!-- 15 -->
+<section class="slide" data-note="B · 1분. Workbench 캡처로 교체할 것. 같은 계좌·같은 금액·1분 차이를 강조.">
+  <div class="kicker">시연 ①</div>
+  <h2>경계값 — 같은 계좌, 같은 금액, 1분 차이</h2>
+  <p class="lede">차단개시일시를 사이에 두고 동일한 출금 요청이 정반대로 처리됩니다.</p>
+  <div class="body">
+  <table class="tight">
+    <tr><th>요청일시</th><th>시점</th><th>판정</th><th>응답</th><th>메시지</th></tr>
+    <tr><td class="mono">2026-09-12 23:59:00</td><td>차단개시 전</td><td style="color:var(--ok);font-weight:700">허용</td><td class="mono">0000</td><td>정상 처리되었습니다</td></tr>
+    <tr><td class="mono">2026-09-13 00:00:01</td><td>차단개시 후</td><td style="color:var(--hl);font-weight:700">차단</td><td class="mono">D001</td><td>사망자 명의 계좌로 출금 거래가 제한됩니다</td></tr>
+  </table>
+  <p class="sm mute" style="margin:20px 0 10px">규칙 테이블을 조인한 판정 시뮬레이션 — <code>IF</code>문 없이 SQL만으로 판정합니다.</p>
+  <table class="tight">
+    <tr><th>고객</th><th>거래유형</th><th>거래일시</th><th>판정</th></tr>
+    <tr><td class="mono">C0000000002</td><td>DEP 입금</td><td class="mono">09-14 10:00</td><td style="color:var(--ok);font-weight:700">허용 — 규칙상 필수거래</td></tr>
+    <tr><td class="mono">C0000000002</td><td>ATO 자동이체</td><td class="mono">09-15 03:00</td><td style="color:var(--hl);font-weight:700">차단 — D002</td></tr>
+    <tr><td class="mono">C0000000002</td><td>CLS 계좌해지</td><td class="mono">09-15 09:30</td><td style="color:var(--hl);font-weight:700">차단 — D003</td></tr>
+  </table>
+  </div>
+  <footer><span class="who">B</span><span></span></footer>
+</section>
+
+<!-- 16 -->
+<section class="slide" data-note="B · 1분. 가장 인상적인 장면. 오류 메시지를 크게 보여줄 것.">
+  <div class="kicker">시연 ②</div>
+  <h2>제약조건이 실제로 막는다</h2>
+  <p class="lede">미등록 수취처, 즉 상속인 개인계좌로 예외인출을 지급하려고 시도했습니다.</p>
+  <div class="body">
+  <pre><span class="k">INSERT INTO</span> exc_payout (exc_request_id, payee_id, ...) <span class="k">VALUES</span> (1, <span class="h">9999</span>, ...);
+
+<span class="h">ERROR 1452 (23000)</span>: Cannot add or update a child row:
+  a foreign key constraint fails (`core_bank`.`exc_payout`,
+  <span class="h">CONSTRAINT `fk_expay_payee`</span> FOREIGN KEY (`payee_id`)
+  REFERENCES `payee_registry` (`payee_id`))</pre>
+  <div class="cols3" style="margin-top:22px">
+    <div class="card"><span class="lab">오류번호</span><h3>1452</h3><p class="sm">FK 위반 — 부모 테이블에 없는 값</p></div>
+    <div class="card"><span class="lab">오류번호</span><h3>1062</h3><p class="sm">UNIQUE 위반 — 중복된 값</p></div>
+    <div class="card"><span class="lab">오류번호</span><h3>3819</h3><p class="sm">CHECK 위반 — 조건 불충족</p></div>
+  </div>
+  <p class="sm mute" style="margin-top:18px">총 12개 위반 시나리오를 검증했습니다. 차단 기준일 오류, 이중 지급, 이력 현재행 2건 등이 모두 DB 단계에서 거부됩니다.</p>
+  </div>
+  <footer><span class="who">B</span><span></span></footer>
+</section>
+
+<!-- 17 -->
+<section class="slide" data-note="공동 · 1.5분. 각 검증이 무엇을 확인하는지 한 줄씩. 현재행과 유효구간은 클릭해서 예시를 보여줄 수 있다.">
+  <div class="kicker">시연 ③</div>
+  <h2>무결성 검증 — 무엇을 확인했나</h2>
+  <p class="lede">설계한 규칙이 데이터에서 실제로 지켜지는지 네 가지를 쿼리로 확인했습니다.</p>
+  <div class="body">
+  <table class="tight">
+    <tr><th style="width:24%">검증</th><th style="width:40%">확인하는 것</th><th>결과</th></tr>
+    <tr><td><b>잔액 = 원장 합계</b></td>
+        <td>반정규화한 <code>balance_amt</code>가 거래원장 입출금 합계와 같은가</td>
+        <td class="ok-b">5개 계좌 전부 일치</td></tr>
+    <tr><td><b><span class="t" data-t="currentrow">이력 현재행</span></b></td>
+        <td>고객마다 "지금 유효한 상태" 행이 <b>정확히 1건</b>인가<br>
+            <span class="xs mute">2건이면 현재 상태 조회에 답이 두 개가 됨</span></td>
+        <td class="ok-b">5명 전부 1건</td></tr>
+    <tr><td><b><span class="t" data-t="continuity">유효구간 연속성</span></b></td>
+        <td>앞 행의 종료와 뒤 행의 시작이 <b>정확히 맞물리는가</b><br>
+            <span class="xs mute">틈이 있으면 그 시점 상태를 알 수 없고, 겹치면 상태가 두 개</span></td>
+        <td class="ok-b">단절·중복 없음</td></tr>
+  </table>
+  <div class="cols" style="margin-top:16px">
+    <div class="card a"><span class="lab">왜 이 검증이 중요한가</span>
+      <p class="sm">"임의의 시점 T에 이 고객이 차단 상태였는가"에 <b>답이 정확히 하나</b> 나와야 차단의 정당성을 증명할 수 있습니다.</p></div>
+    <div class="card"><span class="lab">샘플 데이터 5명</span>
+      <p class="sm">김정상(생존) · <b>박순자</b>(차단, 예외인출 2건) · 이영희 ×2(동명이인) · <b>최말순</b>(오차단 후 해제)</p></div>
+  </div>
+  </div>
+  <footer><span>A · B</span><span></span></footer>
+</section>
+
+<!-- 18 -->
+<section class="slide" data-note="공동. 1분. 한계를 먼저 말하면 질문이 줄어든다.">
+  <div class="kicker">마무리</div>
+  <h2>한계와 다음 단계</h2>
+  <div class="body cols" style="margin-top:12px">
+    <div class="stack">
+      <div class="card w"><span class="lab">설계의 전제</span>
+        <p class="sm">행안부 제공 정보에 <b>사망신고일자가 포함된다</b>고 가정했습니다. 실제 규격을 확인할 수 없었고, 이 가정이 틀리면 제도 자체가 성립하지 않습니다.</p></div>
+      <div class="card w"><span class="lab">매칭의 한계</span>
+        <p class="sm">해시 기반 매칭은 동명이인을 구분하지만, 원천에 주민번호가 없으면 성명·생년월일로 다건매칭이 발생합니다. 자동 차단하지 않고 수작업 확인 대상으로 분리했습니다.</p></div>
+    </div>
+    <div class="stack">
+      <div class="card"><span class="lab">다음 단계</span>
+        <p class="sm">① 배치 프로시저 — 사망정보 매칭에서 차단 생성까지<br>② 판정 로직을 Java 서비스 계층으로 이관<br>③ 로그 보존기간 확정 (전자금융거래법 제22조)</p></div>
+      <div class="card a"><span class="lab">Java 이관을 고려한 설계</span>
+        <p class="sm">판정 로직을 프로시저에 두껍게 넣지 않았습니다. 규칙은 테이블에, 조합과 분기는 서비스 계층에 두는 구조입니다.</p></div>
+    </div>
+  </div>
+  <footer><span>A · B</span><span></span></footer>
+</section>
+
+<!-- 19 -->
+<section class="slide cover" data-note="질문 대기. M키로 목차를 열어 백업 슬라이드로 점프한다. 두 사람 다 백업 번호를 외워둘 것.">
+  <div class="kicker">감사합니다</div>
+  <h1>질문</h1>
+  <div class="big" style="margin-top:34px">
+    <div><div class="n">30</div><div class="l">테이블</div></div>
+    <div><div class="n">67</div><div class="l">FOREIGN KEY</div></div>
+    <div><div class="n">42</div><div class="l">CHECK</div></div>
+    <div><div class="n">17</div><div class="l">UNIQUE</div></div>
+  </div>
+  <p style="margin-top:32px;font-size:17px">발표자 A — 배경 · 범위 · 아키텍처 · 차단 기준일<br>
+  발표자 B — 규칙 설계 · 예외인출 · 무결성 · 시연</p>
+  <footer><span>데이터베이스</span><span></span></footer>
+</section>
+
+<!-- B1 -->
+<section class="slide backup" data-note="부록 — 정규화 질문 대응. 테이블별로 어떤 종속을 제거했는지 구체 사례.">
+  <div class="kicker">부록 A1</div>
+  <h2>테이블별 정규화 점검</h2>
+  <div class="body" style="margin-top:12px">
+  <table class="tight">
+    <tr><th style="width:24%">위반했다면 이런 모습</th><th style="width:22%">우리 모델</th><th>제거한 종속</th></tr>
+    <tr><td><code>exc_request.documents</code><br>= '가족관계증명서, 영수증'</td>
+        <td><code>EXC_DOCUMENT</code> 분리</td>
+        <td><b>1NF</b> · 한 칸에 여러 값. 서류별 검증결과를 기록할 수 없음</td></tr>
+    <tr><td><code>exc_request.approver1_id</code><br><code>exc_request.approver2_id</code></td>
+        <td><code>EXC_APPROVAL</code> 분리</td>
+        <td><b>1NF</b> · 반복 속성. 3차 승인이 생기면 구조 변경 필요</td></tr>
+    <tr><td><code>acct_txn.counter_org_nm</code><br>(상대 기관명)</td>
+        <td><code>ORG_CODE</code> 조인</td>
+        <td><b>3NF</b> · 기관명은 거래가 아니라 기관코드가 결정</td></tr>
+    <tr><td><code>acct_txn.rsp_message</code><br>(응답 메시지)</td>
+        <td><code>RSP_CODE</code> 조인</td>
+        <td><b>3NF</b> · 메시지는 응답코드가 결정</td></tr>
+    <tr><td><code>cust.cust_status_nm</code><br>('사망')</td>
+        <td><code>CODE_DETAIL</code> 조인</td>
+        <td><b>3NF</b> · 상태명은 상태코드가 결정</td></tr>
+    <tr><td><code>cust.cust_status_cd</code>를<br>UPDATE로 덮어씀</td>
+        <td><code>CUST_STATUS_HIST</code></td>
+        <td>정규화는 아니지만 <b>시점 정보 손실</b> 방지</td></tr>
+  </table>
+  <div class="card" style="margin-top:16px"><span class="lab">확인 방법</span>
+    <p class="sm">각 테이블의 비주키 속성이 <b>기본키 전체에만</b> 종속되는지 확인했습니다. 코드명·기관명처럼 다른 속성이 결정하는 값은 전부 참조 테이블로 뺐습니다.</p></div>
+  </div>
+  <footer><span>부록</span><span></span></footer>
+</section>
+
+<!-- B2 -->
+<section class="slide backup" data-note="부록 — 자료형 질문 대응.">
+  <div class="kicker">부록 A2</div>
+  <h2>자료형 선택 근거</h2>
+  <div class="body" style="margin-top:14px">
+  <table class="tight">
+    <tr><th style="width:17%">용도</th><th style="width:24%">선택</th><th>이유</th></tr>
+    <tr><td>금액</td><td><span class="pill" data-t="decimal">DECIMAL(18,2)</span></td><td>FLOAT/DOUBLE은 이진 부동소수점이라 십진 소수를 정확히 표현하지 못해 잔액 대사가 어긋남</td></tr>
+    <tr><td>일시</td><td><span class="pill" data-t="datetime">DATETIME(3)</span></td><td>TIMESTAMP는 2038년 한계가 있고 세션 타임존에 따라 값이 변환됨</td></tr>
+    <tr><td>계좌·고객번호</td><td><span class="pill" data-t="varchar">VARCHAR</span></td><td>앞자리 0을 보존해야 하고 산술 연산을 하지 않음</td></tr>
+    <tr><td>Y/N 여부</td><td><span class="pill" data-t="char1">CHAR(1)</span></td><td>TINYINT(1)은 드라이버 설정에 따라 Boolean/Integer로 달라짐</td></tr>
+    <tr><td>코드값</td><td><span class="pill" data-t="charcode">CHAR(4)</span> + 코드표</td><td>ENUM은 값을 추가할 때마다 ALTER TABLE이 필요</td></tr>
+    <tr><td>해시</td><td><span class="pill" data-t="hash">CHAR(64)</span></td><td>SHA-256 hex 고정 64자. 주민번호 평문을 저장하지 않음</td></tr>
+    <tr><td>대리키</td><td><span class="pill" data-t="bigint">BIGINT</span></td><td>UNSIGNED는 JDBC에서 BigInteger로 매핑되어 다루기 번거로움</td></tr>
+  </table>
+  </div>
+  <footer><span>부록</span><span></span></footer>
+</section>
+
+<!-- B3 -->
+<section class="slide backup" data-note="부록 — 가장 나올 법한 기술 질문. 문제 → 시도 → 해결 순서로 천천히.">
+  <div class="kicker">부록 A3</div>
+  <h2>코드표에 외래키를 걸기까지</h2>
+  <div class="body" style="margin-top:6px">
+  <div class="cols" style="gap:26px">
+    <div class="stack">
+      <div class="card w"><span class="lab">문제</span>
+        <h3>기본키가 두 컬럼이라 참조할 수 없다</h3>
+        <p class="sm">코드표 <code>CODE_DETAIL</code>의 기본키는 <code>(group_cd, code_cd)</code> 두 컬럼입니다. <code>10</code>이라는 코드값이 고객상태 그룹에도, 예외인출사유 그룹에도 있어서 코드값만으로는 유일하지 않기 때문입니다.</p>
+        <p class="sm" style="margin-top:8px">그런데 <code>CUST</code> 테이블에는 <code>cust_status_cd</code>만 있고 <code>group_cd</code>가 없습니다. 외래키는 부모의 기본키 <b>전체</b>를 가리켜야 하므로 걸 수가 없습니다.</p></div>
+      <div class="card"><span class="lab">생각해 본 대안</span>
+        <p class="sm">① 코드 그룹마다 테이블을 따로 만든다 → 테이블이 24개 늘어남<br>
+        ② <code>CHECK</code>로만 검증한다 → 코드가 추가될 때마다 제약을 고쳐야 함</p></div>
+    </div>
+    <div class="stack">
+      <div class="card k"><span class="lab">해결</span>
+        <h3>고정값 컬럼을 하나 붙인다</h3>
+        <pre style="font-size:13px;margin-top:8px">cust_status_cd  <span class="k">CHAR</span>(4),
+cust_status_grp <span class="k">CHAR</span>(10)
+  <span class="h">GENERATED ALWAYS AS</span> (<span class="s">'CUST_ST'</span>) <span class="k">STORED</span>,
+
+<span class="k">FOREIGN KEY</span> (cust_status_grp, cust_status_cd)
+  <span class="k">REFERENCES</span> code_detail (group_cd, code_cd)</pre>
+        <p class="sm" style="margin-top:9px"><code>cust_status_grp</code>는 <b>항상 <span class="t" data-t="generated">'CUST_ST'</span></b>가 되는 컬럼입니다. MySQL이 자동으로 채우므로 <code>INSERT</code>에 쓰지 않습니다. 이 컬럼 덕분에 두 컬럼짜리 외래키가 성립합니다.</p></div>
+      <div class="card a"><span class="lab">결과</span>
+        <p class="sm">고객상태 컬럼에 <b>예외인출 상태값 <code>REQ</code>를 넣으면 거부</b>됩니다. 존재하는 코드인지뿐 아니라 <b>이 컬럼에 맞는 그룹의 코드인지</b>까지 막습니다.</p>
+        <p class="xs mute" style="margin-top:7px">비용 — 생성컬럼 35개 추가, FK마다 인덱스 자동 생성, CASCADE 사용 불가</p></div>
+    </div>
+  </div>
+  </div>
+  <footer><span>부록</span><span></span></footer>
+</section>
+
+<!-- B4 -->
+<section class="slide backup" data-note="부록 — 인덱스 개념을 모르는 청중 기준으로. 책 찾아보기 비유부터.">
+  <div class="kicker">부록 A4</div>
+  <h2>인덱스는 왜 필요한가</h2>
+  <p class="lede">책 뒤의 <b>찾아보기</b>와 같습니다. 원하는 내용을 처음부터 넘겨보지 않고 바로 찾아가게 해 줍니다.</p>
+  <div class="body cols w40">
+    <div class="stack">
+      <div class="card w"><span class="lab">없으면</span>
+        <p class="sm">거래 100만 건에서 특정 계좌의 거래를 찾으려면 <b>100만 건을 전부 읽어야</b> 합니다. 이걸 풀 스캔이라고 합니다.</p></div>
+      <div class="card k"><span class="lab">있으면</span>
+        <p class="sm">정렬된 색인을 따라가 <b>수십 번의 비교</b>로 찾습니다.</p></div>
+      <div class="card"><span class="lab">공짜가 아니다</span>
+        <p class="sm">저장 공간을 더 쓰고, <code>INSERT</code>할 때마다 색인도 갱신해야 해서 <b>쓰기가 느려집니다.</b> 그래서 자주 쓰는 조회에만 만듭니다.</p></div>
+      <p class="xs mute">PK · UNIQUE · FK 컬럼은 MySQL이 <b>자동으로</b> 인덱스를 만들어 줍니다. 아래는 그 외에 직접 추가한 것입니다.</p>
+    </div>
+    <div>
+      <table class="tight">
+        <tr><th style="width:52%">인덱스</th><th>이 조회를 위해</th></tr>
+        <tr><td class="mono">ACCT_TXN (acct_no, txn_dtm)</td><td>계좌별 기간 거래내역 — 가장 빈번</td></tr>
+            <tr><td class="mono">DEATH_BLOCK (block_start_dtm)</td><td>일별 신규 차단 집계</td></tr>
+        <tr><td class="mono">CUST_STATUS_HIST<br>(cust_no, valid_from_dtm)</td><td>특정 시점의 고객 상태 조회</td></tr>
+        <tr><td class="mono">EXT_DEATH_RECORD (rrn_hash)</td><td>일배치 사망자 매칭</td></tr>
+      </table>
+      <div class="card" style="margin-top:14px"><span class="lab">순서가 중요하다</span>
+        <p class="sm"><code>(acct_no, txn_dtm)</code>은 "계좌로 먼저 좁히고 그 안에서 기간으로 좁힌다"는 뜻입니다. 순서를 바꾸면 계좌별 조회에는 잘 듣지 않습니다.</p></div>
+      <p class="xs mute" style="margin-top:12px">실습 데이터가 소량이라 <code>EXPLAIN</code> 측정은 유의미하지 않아 설계 근거만 제시합니다.</p>
+    </div>
+  </div>
+  <footer><span>부록</span><span></span></footer>
+</section>
+
+<!-- B5 -->
+<section class="slide backup" data-note="부록 — 법령 매핑 상세 ①. 수신 기준과 예외인출.">
+  <div class="kicker">부록 A5</div>
+  <h2>법령 매핑 ① 기준정보 · 예외인출</h2>
+  <div class="body" style="margin-top:14px">
+  <table class="tight">
+    <tr><th style="width:30%">조문</th><th style="width:34%">핵심 내용</th><th>모델 반영</th></tr>
+    <tr><td><span class="t" data-t="law84">가족관계등록법 제84조</span></td><td>사망 사실을 안 날부터 <b>1개월 이내</b> 신고</td><td>사망일과 신고일이 최대 1개월 벌어짐 → 컬럼 분리</td></tr>
+    <tr><td>가족관계등록법 제85조</td><td>동거하는 친족이 신고의무자</td><td>신고 주체와 예외인출 신청인이 다를 수 있음을 전제</td></tr>
+    <tr><td>민법 제997조</td><td>상속은 <b>사망으로 개시</b></td><td>사망 시점부터 계좌 자산은 상속재산 → 동결 원칙</td></tr>
+    <tr><td><span class="t" data-t="law998">민법 제998조의2</span></td><td>상속비용은 <b>상속재산 중에서 지급</b></td><td>예외인출 제도의 법적 근거. <code>exc_reason_cd</code> 도메인</td></tr>
+    <tr><td><span class="t" data-t="law1000">민법 제1000~1003조</span></td><td>직계비속 → 직계존속 → 형제자매, 배우자는 공동상속</td><td><code>applicant_rel_cd</code>를 법정 순위로 제한</td></tr>
+  </table>
+  </div>
+  <footer><span>부록</span><span></span></footer>
+</section>
+
+<!-- B5b -->
+<section class="slide backup" data-note="부록 — 법령 매핑 상세 ②. 보존·보안·실명·AML.">
+  <div class="kicker">부록 A6</div>
+  <h2>법령 매핑 ② 보존 · 보안 · 실명</h2>
+  <div class="body" style="margin-top:14px">
+  <table class="tight">
+    <tr><th style="width:30%">조문</th><th style="width:34%">핵심 내용</th><th>모델 반영</th></tr>
+    <tr><td><span class="t" data-t="efta22">전자금융거래법 제22조</span></td><td>거래기록 생성·보존 의무</td><td>일시·금액·방향·채널·단말·상대방 컬럼 배치</td></tr>
+    <tr><td><span class="t" data-t="efta12">시행령 제12조</span></td><td>1만원 초과 <b>5년</b>, 이하 <b>1년</b></td><td>보존정책 확정. 아카이브 이관 기준</td></tr>
+    <tr><td><span class="t" data-t="pipa24">개인정보보호법 제24조의2</span></td><td>주민번호 <b>암호화 보관</b> 의무</td><td><code>rrn_hash</code>(검색) + <code>rrn_enc</code>(저장) 분리</td></tr>
+    <tr><td><span class="t" data-t="credit20">신용정보법 제20조의2</span></td><td>상거래 종료 후 최장 5년 내 삭제·분리</td><td><code>close_dt</code>로 기산점 확보</td></tr>
+    <tr><td><span class="t" data-t="frn3">금융실명법 제3조</span></td><td>실명거래 의무, 실명계좌 자산은 <b>명의자 소유로 추정</b></td><td>오매칭 시 권리구제 → 해제 + SCD 이력</td></tr>
+    <tr><td><span class="t" data-t="frn4">금융실명법 제4조</span></td><td>명의인 동의 없는 제3자 제공 금지</td><td>상속인 직수령 차단 → <code>payee_registry</code> FK</td></tr>
+  </table>
+  </div>
+  <footer><span>부록</span><span></span></footer>
+</section>
+
+<!-- B5c -->
+
+
+<!-- B5d -->
+<section class="slide backup" data-note="부록 — 금융권 설계 일반론 질문 대응. 우리 모델의 충족 현황.">
+  <div class="kicker">부록 A7</div>
+  <h2>금융권 공통 설계 체크리스트</h2>
+  <p class="lede">금융 도메인 데이터 모델이 일반적으로 갖춰야 할 항목과 본 모델의 충족 현황입니다.</p>
+  <div class="body">
+  <table class="tight">
+    <tr><th style="width:62%">점검 항목</th><th>본 모델</th></tr>
+    <tr><td>모든 테이블에 감사 컬럼(등록·수정 일시와 사용자)이 있는가</td><td class="ok-b">충족</td></tr>
+    <tr><td>거래내역이 UPDATE·DELETE 없이 INSERT만 되는 구조인가</td><td class="ok-b">충족</td></tr>
+    <tr><td>고유식별정보가 <code>_hash</code> / <code>_enc</code>로 구분되어 있는가</td><td class="ok-b">충족</td></tr>
+    <tr><td>고객·계좌에 거래종료일이 있어 보존기간을 계산할 수 있는가</td><td class="ok-b">충족</td></tr>
+    <tr><td>거래내역에 채널·단말·현금여부·상대방 정보가 있는가</td><td class="ok-b">충족</td></tr>
+    <tr><td>마스터 변경 시 이력 테이블이 있는가</td><td class="ok-b">충족</td></tr>
+    <tr><td>직원 권한과 고객정보 접근로그 구조가 있는가</td><td class="ok-b">충족</td></tr>
+    <tr><td>코드성 값이 ENUM이 아닌 공통코드 테이블로 관리되는가</td><td class="ok-b">충족</td></tr>
+    <tr><td>실명확인·고객확인(CDD) 정보가 기본정보와 분리된 이력 구조인가</td><td style="color:var(--hl);font-weight:700">범위 외</td></tr>
+  </table>
+  </div>
+  <footer><span>부록</span><span></span></footer>
+</section>
+
+<!-- B6 -->
+<section class="slide backup" data-note="부록 — 동명이인 처리 질문 대응.">
+  <div class="kicker">부록 A8</div>
+  <h2>동명이인과 오매칭 처리</h2>
+  <div class="body" style="margin-top:14px">
+  <div class="flow">
+    <div class="n"><b>20 매칭성공</b><span>해시 일치 → 자동 차단</span></div><div class="a"></div>
+    <div class="n"><b>30 미매칭</b><span>당행 고객 아님 → 조치 없음</span></div><div class="a"></div>
+    <div class="n alt"><b>40 다건매칭</b><span>성명·생년월일 복수 일치 → 수작업 확인</span></div>
+  </div>
+  <div class="cols" style="margin-top:22px">
+    <div class="card"><span class="lab">자동 차단하지 않는 이유</span>
+      <p class="sm">잘못 차단하면 생존 고객의 금융거래가 막힙니다. 다건매칭은 <code>match_status_cd = '40'</code>으로 분리해 담당자가 확인합니다.</p></div>
+    <div class="card k"><span class="lab">해제 프로세스</span>
+      <p class="sm"><code>DEATH_BLOCK</code>의 상태를 해제로 바꾸고 <code>DEATH_BLOCK_HIST</code>에 사유와 조치자를 남깁니다.</p></div>
+  </div>
+  <p class="sm mute" style="margin-top:18px">샘플 데이터의 <b>최말순</b>이 이 경로를 밟습니다. 09-13 차단 → 09-15 해제 → 이후 정상 출금.</p>
+  </div>
+  <footer><span>부록</span><span></span></footer>
+</section>
+
+<div id="bar"></div>
+</div></div>
+
+<div id="modal"><div class="mbox">
+  <div class="mhead"><div><span class="tag" id="mtag"></span><h4 id="mtitle"></h4></div>
+    <button class="mx" id="mclose">✕</button></div>
+  <div class="mbody" id="mbody"></div>
+</div></div>
+
+
+<div id="erdx">
+  <div id="erdbar">
+    <h5>ERD 탐색기</h5>
+    <button class="sbtn on" data-sc="all">전체 30</button>
+    <button class="sbtn" data-sc="core_bank">계정계 15</button>
+    <button class="sbtn" data-sc="ext_link">대외계 3</button>
+    <button class="sbtn" data-sc="channel">채널계 3</button>
+    <button class="sbtn" data-sc="info_mart">정보계 4</button>
+    <button class="sbtn" data-sc="comm_code">공통 5</button>
+    <input id="erdq" placeholder="테이블 · 컬럼 검색">
+    <label style="font-size:12.5px;color:var(--mute);display:flex;align-items:center;gap:5px;cursor:pointer">
+      <input type="checkbox" id="erdgen"> 생성컬럼</label>
+    <button class="sbtn" id="erdfold">컬럼 접기</button>
+    <span style="flex:1"></span>
+    <span style="font-size:12px;color:var(--faint)">FK 컬럼을 클릭하면 부모 테이블로 이동 · ESC 닫기</span>
+    <button class="mx" id="erdclose">✕</button>
+  </div>
+  <div id="erdmain"><div id="erdgrid"><div id="erdcanvas"></div></div>
+    <div id="erdside"><div id="erdempty">테이블 이름을 클릭하면<br>참조 관계가 여기에 표시됩니다.<br><br>
+      <b style="color:var(--accent)">FK 컬럼</b>은 파란색이며, 클릭하면 값이 어디서 왔는지<br>부모 테이블로 이동합니다.</div></div>
+  </div>
+</div>
+<div id="notes"></div>
+<div id="idx"><h3>슬라이드 목차 — 클릭하면 이동합니다 (M 닫기)</h3><ol id="idxList"></ol></div>
+
+<script>
+var TERMS = {
+
+hashmatch:{tag:"배치 처리",title:"해시로 고객을 매칭한다는 것",html:`
+<p>행정안전부가 보낸 사망자와 우리 은행 고객이 <b>같은 사람인지</b> 판별하는 단계입니다.</p>
+<h5>왜 주민번호를 직접 비교하지 않나</h5>
+<p>개인정보보호법 제24조의2가 주민등록번호 평문 저장을 금지합니다. 그래서 양쪽 다 <b>SHA-256 해시로 바꿔서 해시끼리 비교</b>합니다.</p>
+<p>해시는 같은 입력이면 항상 같은 결과가 나오지만 <b>결과에서 원본을 되돌릴 수 없습니다.</b> 평문 없이도 동일인 판별이 됩니다.</p>
+<p><code>UPDATE ext_death_record e JOIN cust c ON c.rrn_hash = e.rrn_hash<br>&nbsp;&nbsp;&nbsp;SET e.match_status_cd='20', e.matched_cust_no=c.cust_no;</code></p>
+<h5>결과는 세 갈래</h5>
+<table>
+<tr><th>상태</th><th>뜻</th><th>조치</th></tr>
+<tr><td><code>20</code> 매칭성공</td><td>해시가 일치</td><td>자동 차단</td></tr>
+<tr><td><code>30</code> 미매칭</td><td>당행 고객이 아님</td><td>조치 없음 — <b>대부분</b></td></tr>
+<tr><td><code>40</code> 다건매칭</td><td>성명·생년월일이 여러 명과 일치</td><td><b>사람이 확인</b></td></tr>
+</table>
+<h5>40번을 자동 처리하지 않는 이유</h5>
+<p>원천에 주민번호가 없거나 마스킹되어 성명과 생년월일로만 대조해야 할 때 생깁니다. 잘못 차단하면 <b>살아 있는 고객의 금융거래가 막힙니다.</b> 그래서 담당자 확인 대상으로 분리합니다.</p>
+<div class="note">샘플 데이터의 <b>이영희 두 명</b>이 이 경우입니다. 이름도 생년월일도 같아 자동 매칭이 불가능합니다.</div>`},
+
+nightbatch:{tag:"배치 처리",title:"영업 종료 후 야간 집계",html:`
+<p>낮에는 거래 처리가 최우선입니다. 통계 쿼리를 영업 중에 돌리면 <b>창구에서 손님이 기다리는 동안 계정계에 부하</b>를 줍니다.</p>
+<p>그래서 영업이 끝난 뒤 배치가 원장을 읽어 정보계 테이블에 <b>결과만</b> 적재합니다.</p>
+<h5>무엇을 집계하나</h5>
+<table>
+<tr><th>테이블</th><th>내용</th></tr>
+<tr><td><code>stat_block_daily</code></td><td>일자·채널별 차단 건수와 금액, 신규 차단 고객 수</td></tr>
+<tr><td><code>stat_exception_daily</code></td><td>예외인출 신청·승인·반려 건수, 지급 금액</td></tr>
+<tr><td><code>stat_mismatch</code></td><td>미매칭·다건매칭 건수</td></tr>
+</table>
+<h5>개인정보를 담지 않는다</h5>
+<p>집계 테이블에는 고객번호도 계좌번호도 없습니다. <b>건수와 금액만</b> 있습니다. 금융감독원 제출이나 내부 보고에 쓸 때 원본 데이터에 접근하지 않아도 되게 하는 장치입니다.</p>
+<h5>계정계를 직접 참조하지 않는다</h5>
+<p>정보계 테이블은 계정계에 FK를 걸지 않습니다. 배치가 끝나면 두 계층은 서로 독립적으로 동작합니다. 집계를 다시 돌려야 하면 같은 키로 덮어쓰면 됩니다.</p>`},
+
+
+ckrule:{tag:"제약조건",title:"모순된 규칙을 막는 CHECK",html:`
+<p><code>block_rule</code> 테이블에 행이 들어오거나 수정될 때, 아래 <b>두 가지 정상 케이스 중 하나</b>여야만 저장됩니다.</p>
+<p><code>CHECK ( (allow_yn='Y' AND reject_rsp_cd IS NULL)<br>&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;OR (allow_yn='N' AND reject_rsp_cd IS NOT NULL) )</code></p>
+<table>
+<tr><th>경우</th><th>allow_yn</th><th>reject_rsp_cd</th></tr>
+<tr><td>A · 허용 거래</td><td><code>'Y'</code></td><td>비어 있어야 함</td></tr>
+<tr><td>B · 차단 거래</td><td><code>'N'</code></td><td>반드시 채워져야 함</td></tr>
+</table>
+<h5>막으려는 모순 두 가지</h5>
+<ul>
+<li><b>허용인데 거절코드가 있음</b> → 거래는 승인해 놓고 고객에게는 거절 메시지를 내보내는 상황</li>
+<li><b>차단인데 거절코드가 없음</b> → 거래는 막혔는데 왜 막혔는지 알려줄 수 없는 상황. 채널이 응답을 만들지 못해 멈춥니다</li>
+</ul>
+<h5>핵심 의의</h5>
+<p>서버 개발자가 애플리케이션에서 검증을 빠뜨리거나, 운영자가 DB 툴로 직접 값을 잘못 고쳐도 <b>DB 엔진이 그 트랜잭션을 거절</b>합니다. 잘못된 정책 데이터가 시스템에 유입되는 것을 원천 차단합니다.</p>
+<div class="note">규칙 자체를 테이블로 뺐기 때문에 <b>규칙의 무결성도 제약으로 지켜야</b> 합니다. 데이터화의 대가이자 그 대가를 치른 방식입니다.</div>`},
+
+
+currentrow:{tag:"이력 설계",title:"이력 현재행이란",html:`
+<p>이력 테이블에는 한 고객의 상태 변화가 <b>여러 행</b>으로 쌓입니다. 그중 <b>지금 유효한 행 하나</b>를 현재행이라고 부릅니다.</p>
+<h5>최말순의 이력 3행</h5>
+<table>
+<tr><th>상태</th><th>valid_from</th><th>valid_to</th></tr>
+<tr><td>정상</td><td>2005-06-30</td><td>2026-09-13</td></tr>
+<tr><td>사망</td><td>2026-09-13</td><td>2026-09-15 11:00</td></tr>
+<tr><td><b>정상</b></td><td>2026-09-15 11:00</td><td><b>9999-12-31</b></td></tr>
+</table>
+<p>세 번째 행이 현재행입니다. 종료일시가 <code>9999-12-31</code>이면 "아직 끝나지 않았다"는 뜻입니다.</p>
+<h5>왜 정확히 1건이어야 하나</h5>
+<p>2건이면 "이 고객 지금 상태가 뭐냐"는 질문에 <b>답이 두 개</b>가 됩니다. 차단 판정이 두 가지 결과를 내고, 그 뒤 모든 처리가 어긋납니다.</p>
+<p>배치가 두 번 돌거나 트랜잭션이 꼬이면 실제로 생길 수 있는 사고입니다. 그래서 <code>UNIQUE (cust_no, valid_to_dtm)</code>로 DB가 막도록 했습니다.</p>
+<div class="note">종료일시를 NULL로 두면 MySQL의 UNIQUE가 NULL을 중복으로 보지 않아 이 보장이 사라집니다. <b>9999-12-31을 쓴 진짜 이유</b>입니다.</div>`},
+
+continuity:{tag:"이력 설계",title:"유효구간 연속성이란",html:`
+<p>이력 행들의 <b>앞 행 종료 시각</b>과 <b>뒤 행 시작 시각</b>이 정확히 맞물려야 한다는 규칙입니다.</p>
+<h5>정상 — 맞물림</h5>
+<table>
+<tr><th>상태</th><th>시작</th><th>종료</th></tr>
+<tr><td>정상</td><td>2005-06-30</td><td><b>2026-09-13 00:00</b></td></tr>
+<tr><td>사망</td><td><b>2026-09-13 00:00</b></td><td>2026-09-15 11:00</td></tr>
+</table>
+<p>앞의 종료와 뒤의 시작이 같은 값입니다.</p>
+<h5>단절 — 틈이 생긴 경우</h5>
+<p>앞 종료가 <code>09-13 00:00</code>인데 뒤 시작이 <code>09-13 09:00</code>이라면, 그 <b>9시간 동안 이 고객의 상태를 알 수 없습니다.</b> 그 사이에 들어온 거래를 어떻게 판정했는지 설명할 수 없습니다.</p>
+<h5>중복 — 겹친 경우</h5>
+<p>앞 종료가 <code>09-15 11:00</code>인데 뒤 시작이 <code>09-15 10:00</code>이라면, 그 <b>1시간 동안 상태가 두 개</b>입니다. 정상이면서 동시에 사망인 상태가 됩니다.</p>
+<h5>어떻게 검증했나</h5>
+<p>윈도우 함수 <code>LAG</code>로 이전 행의 종료 시각을 가져와 현재 행의 시작 시각과 비교했습니다.</p>
+<p><code>LAG(valid_to_dtm) OVER (PARTITION BY cust_no ORDER BY valid_from_dtm) = valid_from_dtm</code></p>
+<div class="note">이 두 가지가 모두 없어야 <b>"임의의 시점 T에 이 고객은 어떤 상태였나"에 답이 정확히 하나</b> 나옵니다. 차단이 정당했음을 증명하려면 이것이 보장되어야 합니다.</div>`},
+
+
+rspcode:{tag:"테이블 구조",title:"RSP_CODE — 응답코드는 한 곳에만",html:`
+<p>응답코드의 <b>정의</b>는 <code>comm_code.rsp_code</code> 한 테이블에만 있습니다. 쓰는 쪽은 코드 값만 갖고 FK로 참조합니다.</p>
+<table>
+<tr><th>컬럼</th><th>역할</th></tr>
+<tr><td><code>rsp_cd CHAR(4)</code></td><td>기본키. <code>0000</code>, <code>D001</code> 등</td></tr>
+<tr><td><code>rsp_message VARCHAR(200)</code></td><td>고객에게 보여줄 문구</td></tr>
+<tr><td><code>openbanking_cd CHAR(3)</code></td><td>오픈뱅킹 규격 대응코드</td></tr>
+<tr><td><code>success_yn CHAR(1)</code></td><td>정상 처리 여부</td></tr>
+</table>
+<h5>참조하는 컬럼 7개</h5>
+<table>
+<tr><th>테이블</th><th>컬럼</th><th>의미</th></tr>
+<tr><td><code>acct_txn</code></td><td><code>rsp_cd</code></td><td>기표된 거래의 처리결과</td></tr>
+<tr><td><code>chnl_response</code></td><td><code>rsp_cd</code></td><td>채널에 돌려준 응답</td></tr>
+<tr><td><code>block_rule</code></td><td><code>reject_rsp_cd</code></td><td>차단 시 반환할 코드</td></tr>
+<tr><td><code>exc_payout</code></td><td><code>rsp_cd</code></td><td>예외인출 지급 결과</td></tr>
+<tr><td><code>auto_transfer_result</code></td><td><code>fail_rsp_cd</code></td><td>자동이체 실패 사유</td></tr>
+<tr><td><code>ext_inquiry_log</code></td><td><code>response_cd</code></td><td>대외 조회 응답</td></tr>
+<tr><td><code>audit_death_access</code></td><td><code>result_cd</code></td><td>감사로그 처리결과</td></tr>
+</table>
+<h5>왜 메시지를 각 테이블에 복사하지 않나</h5>
+<p>메시지 문구를 고치려면 한 행만 <code>UPDATE</code>하면 됩니다. 거래원장에 복사해 뒀다면 수백만 건을 수정해야 하고, 이것이 <b>제3정규형 위반</b>입니다.</p>
+<div class="note"><code>success_yn</code>을 별도로 둔 이유는, 코드값 문자열을 파싱해서 성공 여부를 판단하는 코드를 쓰지 않기 위해서입니다.</div>`},
+
+fd:{tag:"정규화",title:"함수 종속 (Functional Dependency)",html:`
+<p>어떤 속성 A의 값이 정해지면 속성 B의 값도 하나로 정해질 때, <b>B는 A에 함수 종속</b>이라고 하고 <code>A → B</code>로 씁니다.</p>
+<h5>예시</h5>
+<p><code>org_cd → org_nm</code> — 기관코드 <code>020</code>이 정해지면 기관명은 반드시 '우리은행'입니다.</p>
+<h5>세 가지 종류</h5>
+<table>
+<tr><th>종류</th><th>설명</th><th>제거 단계</th></tr>
+<tr><td>완전 함수 종속</td><td>기본키 <b>전체</b>가 있어야 결정</td><td>정상</td></tr>
+<tr><td>부분 함수 종속</td><td>기본키의 <b>일부</b>만으로 결정</td><td>2NF</td></tr>
+<tr><td>이행 함수 종속</td><td>키 → A → B 로 <b>두 단계</b>를 거침</td><td>3NF</td></tr>
+</table>
+<h5>우리 모델의 이행 종속 제거</h5>
+<p>거래원장에 상대 기관명을 두면 <code>txn_id → counter_org_cd → counter_org_nm</code>이 됩니다. 기관명은 거래가 아니라 기관코드가 결정하므로 이행 종속입니다.</p>
+<p>기관명을 <code>ORG_CODE</code>로 빼면 이 연결고리가 끊어집니다.</p>`},
+
+bcnf:{tag:"정규화",title:"BCNF (보이스-코드 정규형)",html:`
+<p>3NF보다 한 단계 엄격한 정규형입니다. <b>모든 결정자가 후보키여야</b> 합니다.</p>
+<h5>결정자란</h5>
+<p><code>A → B</code>일 때 A가 결정자입니다. 3NF는 비주키 속성끼리의 종속만 막지만, BCNF는 <b>주키의 일부가 다른 속성에 종속되는 경우</b>까지 막습니다.</p>
+<h5>우리 모델의 점검 결과</h5>
+<p>복합키 테이블이 <code>CODE_DETAIL(group_cd, code_cd)</code> 하나뿐이고, 여기서 결정자는 이 복합키 전체입니다. <code>code_nm</code>이 <code>group_cd</code>나 <code>code_cd</code> 하나만으로 결정되지 않습니다.</p>
+<p>나머지 테이블은 전부 단일 컬럼 기본키라 BCNF 위반이 생길 구조가 아닙니다. <b>별도 조치 없이 BCNF를 만족</b>합니다.</p>
+<div class="note">실무에서는 3NF까지만 맞추고 멈추는 경우가 많습니다. BCNF를 위해 테이블을 더 쪼개면 조인이 늘어 성능이 떨어지기 때문입니다. 우리는 구조상 자연스럽게 만족한 경우입니다.</div>`},
+
+
+law84:{tag:"법령",title:"가족관계등록법 제84조·제85조 — 사망신고",html:`
+<p><b>제84조</b> ① 사망의 신고는 제85조에 규정한 사람이 <b>사망의 사실을 안 날부터 1개월 이내</b>에 진단서 또는 검안서를 첨부하여 하여야 한다.</p>
+<p><b>제85조</b> ① 사망의 신고는 동거하는 친족이 하여야 한다. ② 친족·동거자 또는 사망장소를 관리하는 사람 등도 신고할 수 있다.</p>
+<h5>왜 이 조문이 설계의 출발점인가</h5>
+<p>신고 기한이 1개월이라는 것은 <b>사망일과 신고일이 최대 한 달 벌어질 수 있다</b>는 뜻입니다. 은행은 신고가 접수되어야 비로소 사망 사실을 알 수 있으므로, 사망일을 차단 기준으로 삼으면 제도가 작동하지 않습니다.</p>
+<h5>모델 반영</h5>
+<ul>
+<li><code>death_dt</code>와 <code>death_report_dt</code>를 <b>물리적으로 별도 컬럼</b>으로 분리</li>
+<li>차단 기준을 <code>death_report_dt + 1일 00:00:00</code>으로 확정하고 CHECK 제약으로 강제</li>
+</ul>`},
+
+law998:{tag:"법령",title:"민법 제997조·제998조의2 — 상속 개시와 상속비용",html:`
+<p><b>제997조(상속개시의 원인)</b> 상속은 사망으로 인하여 개시된다.</p>
+<p><b>제998조의2(상속비용)</b> 상속에 관한 비용은 <b>상속재산 중에서 지급한다.</b></p>
+<h5>두 조문이 함께 만드는 구조</h5>
+<p>제997조에 따라 사망 시점부터 계좌 자산은 상속재산이 됩니다. 원칙은 <b>동결</b>입니다. 상속인이 확정되기 전에 누구도 임의로 인출할 수 없습니다.</p>
+<p>그런데 제998조의2는 장례비·치료비 같은 상속비용을 <b>상속재산에서 지급한다</b>고 규정합니다. 동결 원칙에 대한 법적 예외가 여기서 나옵니다.</p>
+<h5>모델 반영</h5>
+<p>예외인출 엔터티(<code>exc_request</code>)와 증빙서류(<code>exc_document</code>)가 이 조문에서 도출됐습니다. 사유코드를 치료비·장례비로 제한한 것도 "상속비용"의 범위를 따른 것입니다.</p>`},
+
+law1000:{tag:"법령",title:"민법 제1000조~제1003조 — 법정 상속순위",html:`
+<p><b>제1000조</b> ① 상속 순위는 1. 직계비속 2. 직계존속 3. 형제자매 4. 4촌 이내 방계혈족.<br>
+② 동순위가 여럿이면 최근친이 선순위, 같은 촌수면 공동상속인.<br>
+③ 태아는 이미 출생한 것으로 본다.</p>
+<p><b>제1003조</b> 배우자는 직계비속·직계존속이 있으면 <b>공동상속인</b>, 없으면 단독상속인.</p>
+<h5>모델 반영</h5>
+<p>예외인출 신청인 자격을 아무나로 두면 안 됩니다. <code>applicant_rel_cd</code>의 도메인을 법정 상속순위로 제한했습니다.</p>
+<table>
+<tr><th>코드</th><th>관계</th></tr>
+<tr><td>10</td><td>배우자</td></tr><tr><td>20</td><td>직계비속</td></tr>
+<tr><td>30</td><td>직계존속</td></tr><tr><td>40</td><td>형제자매</td></tr>
+<tr><td>90</td><td>기타</td></tr>
+</table>
+<p>이 값은 공통코드 테이블에 있고, FK로 강제됩니다. 정의되지 않은 관계로는 신청 자체가 저장되지 않습니다.</p>`},
+
+efta22:{tag:"법령",title:"전자금융거래법 제22조 — 거래기록 생성·보존",html:`
+<p>① 금융회사등은 전자금융거래의 내용을 <b>추적·검색</b>하거나 오류를 <b>확인·정정</b>할 수 있는 기록을 생성하여 <b>5년의 범위</b>에서 대통령령이 정하는 기간 동안 보존하여야 한다.</p>
+<p>② 보존기간이 지나고 상거래관계가 종료된 경우 5년 이내에 파기하여야 한다.</p>
+<h5>"추적·검색"과 "오류 정정"이 컬럼을 결정한다</h5>
+<p>사후에 거래를 재구성할 수 있어야 한다는 뜻입니다. 그래서 거래원장에 다음이 필요합니다.</p>
+<ul>
+<li><code>txn_dtm</code> 거래일시 · <code>txn_amt</code> 금액 · <code>dr_cr_cd</code> 방향</li>
+<li><code>chnl_cd</code> 채널 · <code>terminal_id</code> 단말 식별값</li>
+<li><code>counter_org_cd</code>, <code>counter_acct_no</code> 상대방 정보</li>
+</ul>
+<h5>정정도 새 거래로</h5>
+<p>거래를 <code>UPDATE</code>하면 원래 기록이 사라져 추적이 불가능해집니다. 본 모델의 거래원장은 <b>INSERT만</b> 하는 구조이고, 정정·취소도 새 거래로 기록합니다.</p>`},
+
+efta12:{tag:"법령",title:"전자금융거래법 시행령 제12조 — 보존기간",html:`
+<p>거래기록의 종류별 보존기간을 금액에 따라 나눕니다.</p>
+<table>
+<tr><th>대상</th><th>보존기간</th></tr>
+<tr><td>건당 <b>1만원 초과</b> 전자금융거래 기록</td><td><b>5년</b></td></tr>
+<tr><td>전자적 장치의 접속기록</td><td>5년</td></tr>
+<tr><td>거래 신청 및 조건 변경에 관한 사항</td><td>5년</td></tr>
+<tr><td>건당 <b>1만원 이하</b> 거래 기록</td><td><b>1년</b></td></tr>
+<tr><td>전자지급수단 거래승인 기록</td><td>1년</td></tr>
+</table>
+<h5>설계에 주는 의미</h5>
+<p>같은 테이블 안에서 <b>행마다 보존기간이 다릅니다.</b> 일괄 삭제가 불가능하다는 뜻이고, 파기 대상을 고를 때 금액 조건이 들어가야 합니다.</p>
+<p>본 프로젝트는 이 기준을 보존정책 문서에 확정하고, 실제 아카이브 이관은 다음 단계로 남겨 두었습니다.</p>`},
+
+pipa24:{tag:"법령",title:"개인정보보호법 제24조의2 — 주민등록번호 처리 제한",html:`
+<p>① 법률·대통령령 등에서 구체적으로 허용한 경우를 제외하고 주민등록번호를 처리할 수 없다.</p>
+<p>② 개인정보처리자는 주민등록번호가 유출되지 아니하도록 <b>암호화 조치를 통하여 안전하게 보관</b>하여야 한다.</p>
+<h5>해시만으로는 부족한 이유</h5>
+<p>해시는 되돌릴 수 없어 <b>매칭에는 쓸 수 있지만 원문을 꺼낼 수 없습니다.</b> 그런데 실명확인이나 감독기관 제출처럼 원문이 필요한 업무가 존재합니다.</p>
+<h5>모델 반영 — 두 컬럼으로 분리</h5>
+<table>
+<tr><th>컬럼</th><th>용도</th></tr>
+<tr><td><code>rrn_hash CHAR(64)</code></td><td><b>검색·매칭용.</b> 단방향 해시라 복호화 불가</td></tr>
+<tr><td><code>rrn_enc VARBINARY(128)</code></td><td><b>저장용 암호문.</b> 필요 시 복호화</td></tr>
+</table>
+<p>평문 컬럼은 이 모델에 존재하지 않습니다. 형식 검증도 함께 걸었습니다 — <code>CHECK (rrn_hash REGEXP '^[0-9a-f]{64}$')</code></p>`},
+
+credit20:{tag:"법령",title:"신용정보법 제20조의2 — 개인신용정보 보유기간",html:`
+<p>② 신용정보제공·이용자는 <b>금융거래 등 상거래관계가 종료된 날부터 최장 5년 이내</b>에 개인신용정보를 관리대상에서 삭제하여야 한다.</p>
+<p>③ 예외로 보존하는 경우에는 <b>현재 거래 중인 정보와 분리</b>하여 관리하여야 한다.</p>
+<h5>"종료된 날"을 어떻게 아는가</h5>
+<p>5년을 세려면 기산점이 필요합니다. 그런데 종료일을 기록해 두지 않으면 계산 자체가 불가능합니다.</p>
+<h5>모델 반영</h5>
+<ul>
+<li><code>cust.close_dt</code> — 고객의 상거래관계 종료일</li>
+<li><code>acct.close_dt</code> — 계좌 해지일</li>
+</ul>
+<p>사망 차단이 확정되면 <code>cust.close_dt</code>에 차단개시일을 기록합니다. 샘플 데이터의 박순자는 <code>2026-09-13</code>이 들어 있습니다.</p>
+<div class="note">이력 테이블의 <code>valid_from_dtm</code>도 같은 역할을 합니다. 상태가 정상에서 사망으로 바뀐 시점이 곧 법적 종료일입니다.</div>`},
+
+frn3:{tag:"법령",title:"금융실명법 제3조 — 실명거래 의무",html:`
+<p>① 금융회사등은 거래자의 <b>실지명의</b>로 금융거래를 하여야 한다.</p>
+<p>⑤ 실명이 확인된 계좌에 보유하고 있는 금융자산은 <b>명의자의 소유로 추정한다.</b></p>
+<h5>사망과 실명거래</h5>
+<p>사망하면 본인의 거래 의사표시 능력이 소멸합니다. 출금·이체 같은 <b>능동적 거래</b>는 실명거래 원칙상 성립할 수 없습니다. 반면 입금은 계좌에 자산이 유입되는 것이라 의사표시가 필요하지 않습니다.</p>
+<p>이것이 "입금만 허용"의 법적 근거입니다.</p>
+<h5>제5항이 중요한 이유</h5>
+<p>실명 확인된 계좌의 자산은 <b>명의자의 정당한 소유로 추정</b>됩니다. 동명이인 오매칭으로 생존 고객이 차단되면 이 권리가 침해됩니다.</p>
+<p>그래서 차단 해제는 선택이 아니라 <b>권리 구제 절차</b>입니다. <code>release_reason_cd</code>와 이력 테이블로 "언제부터 언제까지 오차단되었고 어떤 사유로 복구되었는가"를 증명할 수 있게 설계했습니다.</p>`},
+
+frn4:{tag:"법령",title:"금융실명법 제4조 — 금융거래의 비밀보장",html:`
+<p>① 금융회사등에 종사하는 자는 <b>명의인의 서면상의 요구나 동의를 받지 아니하고는</b> 그 금융거래의 내용에 대한 정보 또는 자료를 타인에게 제공하거나 누설하여서는 아니 된다.</p>
+<h5>유가족도 "타인"이다</h5>
+<p>상속 절차가 완료되기 전까지 상속인은 법적으로 제3자입니다. 상속인 개인 계좌로 예외인출금을 지급하면 비밀보장 원칙과 충돌하고, 다른 상속인과의 분쟁이나 횡령 문제로 번질 수 있습니다.</p>
+<h5>모델 반영</h5>
+<p><code>exc_payout.payee_id</code>를 <code>payee_registry</code>를 참조하는 <b>NOT NULL 외래키</b>로 두었습니다. 사전 검증된 의료기관·장례식장만 수취인이 될 수 있고, 상속인 계좌번호가 들어갈 자리 자체가 스키마에 없습니다.</p>
+<div class="note">법 위반 소지를 <b>아키텍처 수준에서 차단</b>한 사례입니다. 운영자가 실수하거나 코드에 버그가 있어도 DB가 거부합니다.</div>`},
+
+efsr13:{tag:"감독규정",title:"전자금융감독규정 제13조 — 전산자료 보호대책",html:`
+<p>① 금융회사는 전산자료의 유출·파괴를 방지하기 위한 대책을 수립·운용하여야 한다.</p>
+<p>제9호 — 정보처리시스템의 가동기록은 <b>접속의 성공 여부와 상관없이</b> 자동으로 기록·유지하고 <b>1년 이상</b> 보존할 것.</p>
+<h5>"성공 여부와 상관없이"가 핵심</h5>
+<p>실패한 접근 시도야말로 오남용의 증거입니다. 권한 없는 직원이 사망자 정보를 조회하려다 거부된 기록이 남아야 감독기관이 이를 적발할 수 있습니다.</p>
+<h5>모델 반영</h5>
+<p><code>audit_death_access</code>에 다음을 강제 저장합니다.</p>
+<table>
+<tr><th>컬럼</th><th>역할</th></tr>
+<tr><td><code>actor_id</code></td><td>조회 주체 — 직원 사번 또는 배치 ID</td></tr>
+<tr><td><code>actor_type_cd</code></td><td>직원 / 배치 / API</td></tr>
+<tr><td><code>access_dtm</code></td><td>조회 일시</td></tr>
+<tr><td><code>purpose_cd</code></td><td><b>조회 목적</b> — 목적 외 이용 탐지의 핵심</td></tr>
+<tr><td><code>result_cd</code></td><td><b>성공·실패</b> 처리 결과</td></tr>
+</table>`},
+
+partition:{tag:"설계 판단",title:"파티셔닝과 외래키의 충돌",html:`
+<p><b>파티셔닝</b>은 하나의 큰 테이블을 내부적으로 여러 조각으로 나눠 저장하는 기법입니다. 거래원장을 연 단위로 나누면 5년 지난 데이터를 <b>파티션 통째로</b> 잘라낼 수 있어 보존기간 관리에 유리합니다.</p>
+<h5>그런데 MySQL에서는 불가능합니다</h5>
+<p>InnoDB는 <b>파티션된 테이블에 외래키를 걸 수 없습니다.</b> 실제로 시도하면 이렇게 됩니다.</p>
+<p><code>ERROR 1506 (HY000): Foreign keys are not yet supported in conjunction with partitioning</code></p>
+<h5>무엇을 택했나</h5>
+<p>거래원장은 계좌·거래유형·채널·응답코드 등 5개의 FK를 갖고 있습니다. 파티셔닝을 택하면 이 참조 무결성을 전부 포기해야 합니다.</p>
+<p>본 프로젝트는 <b>참조 무결성을 택했습니다.</b> 실습 규모에서는 파티셔닝의 성능 이점보다 무결성 보장이 학습 목표에 부합하고, 보존기간 관리는 <b>아카이브 테이블로 이관</b>하는 방식으로 대체할 수 있기 때문입니다.</p>
+<div class="note">실무에서는 거래원장에 FK를 걸지 않고 파티셔닝을 택하는 경우가 많습니다. <b>무엇을 포기할지 선택하는 문제</b>이지 정답이 하나인 문제가 아닙니다.</div>`},
+
+
+/* ---------- 거래유형 ---------- */
+DEP:{tag:"거래유형 코드",title:"DEP — 입금 (Deposit)",html:`
+<p>현금이나 수표를 계좌에 넣어 <b>잔액이 늘어나는</b> 거래입니다. 자금의 방향이 계좌 <b>안쪽</b>이므로 입출금구분은 <code>I</code>(In)입니다.</p>
+<h5>차단 중에도 허용하는 이유</h5>
+<p>사망자 계좌로 들어오는 돈은 대부분 미수령 급여, 보험금, 연금 정산처럼 <b>상속재산을 늘리는</b> 자금입니다. 이걸 막으면 오히려 유가족이 손해를 봅니다. 제도의 목적은 자산이 <b>빠져나가는</b> 것을 막는 것이지 들어오는 것을 막는 게 아닙니다.</p>
+<div class="note">보도자료의 <b>"입금 등 필수 거래를 제외한"</b>이라는 문구가 이 판단의 근거입니다.</div>`},
+
+TRI:{tag:"거래유형 코드",title:"TRI — 이체입금 (Transfer In)",html:`
+<p>다른 사람이 보낸 돈이 내 계좌로 들어오는 거래입니다. DEP가 창구·ATM에서 현금을 넣는 것이라면, TRI는 <b>다른 계좌에서 송금되어 들어오는</b> 것입니다.</p>
+<h5>왜 DEP와 구분하나</h5>
+<ul>
+<li>TRI는 <b>상대 계좌 정보</b>가 존재합니다 — <code>counter_org_cd</code>(상대 은행), <code>counter_acct_no</code>(상대 계좌)</li>
+<li>DEP는 상대가 없어 두 컬럼이 <code>NULL</code>입니다</li>
+<li>통계·감사에서 "타행에서 들어온 자금"을 따로 집계해야 합니다</li>
+</ul>
+<p>둘 다 방향은 <code>I</code>이고 차단 규칙상 <b>허용</b>입니다.</p>`},
+
+WDR:{tag:"거래유형 코드",title:"WDR — 출금 (Withdrawal)",html:`
+<p>ATM이나 창구에서 <b>현금을 빼는</b> 거래입니다. 방향은 <code>O</code>(Out)이고, 차단 대상의 대표격입니다.</p>
+<h5>예외인출이 가능한 이유</h5>
+<p>치료비·장례비가 급한 유가족이 실제로 필요로 하는 것이 이 거래입니다. 다만 승인되더라도 <b>현금으로 주지 않고</b> 병원·장례식장 계좌로 이체(TRO)하는 형태로 집행합니다.</p>
+<div class="note">응답코드 <b>D001</b> — "사망자 명의 계좌로 출금 거래가 제한됩니다"</div>`},
+
+TRO:{tag:"거래유형 코드",title:"TRO — 이체출금 (Transfer Out)",html:`
+<p>내 계좌에서 다른 계좌로 <b>돈을 보내는</b> 거래입니다. 방향은 <code>O</code>.</p>
+<h5>이 프로젝트에서 특별한 위치</h5>
+<p>차단 대상이면서 동시에 <b>예외인출의 집행 수단</b>이기도 합니다. 예외인출이 승인되면 시스템은 TRO 거래를 만들어 장례식장 계좌로 이체합니다. 이때 응답코드는 <code>D001</code>이 아니라 <code>E010</code>(예외 인출 승인 거래)이 붙습니다.</p>
+<p>같은 거래유형이라도 예외 승인을 거쳤는지에 따라 결과가 달라진다는 점이 설계의 핵심입니다.</p>`},
+
+ATO:{tag:"거래유형 코드",title:"ATO — 자동이체 출금 (Auto Transfer Out)",html:`
+<p>통신비·보험료·관리비처럼 매월 지정한 날에 <b>자동으로 빠져나가는</b> 거래입니다.</p>
+<h5>다른 출금과 결정적으로 다른 점</h5>
+<p>사람이 요청하지 않습니다. 배치 프로그램이 정해진 날짜에 알아서 실행합니다. 그래서 <b>유가족이 모르는 사이에</b> 계속 돈이 나갈 수 있습니다.</p>
+<h5>예외인출이 불가능한 이유</h5>
+<p>예외인출은 치료비·장례비처럼 <b>사망과 직접 관련된 긴급 지출</b>에만 허용됩니다. 통신비 자동이체는 여기 해당하지 않습니다. 그래서 <code>exception_possible_yn = 'N'</code>입니다.</p>
+<div class="note">보도자료도 <b>"자동이체가 중단되니 유의하라"</b>고 안내하고 있습니다. 유가족이 미리 알아야 하는 사항입니다.</div>`},
+
+CLS:{tag:"거래유형 코드",title:"CLS — 계좌해지 (Close)",html:`
+<p>계좌를 닫고 남은 잔액을 지급하는 거래입니다. 실질적으로 <b>전액 출금</b>이므로 방향은 <code>O</code>입니다.</p>
+<h5>왜 별도 유형으로 두나</h5>
+<ul>
+<li>금액이 잔액 전체로 고정됩니다</li>
+<li>계좌 상태를 <code>해지</code>로 바꾸는 부수 효과가 있습니다</li>
+<li>되돌릴 수 없어 차단 우선순위가 높습니다</li>
+</ul>
+<p>사망자 계좌를 해지해 버리면 상속 절차 자체가 꼬입니다. 예외인출로도 허용하지 않습니다.</p>
+<div class="note">응답코드 <b>D003</b> — "사망자 명의 계좌는 해지할 수 없습니다"</div>`},
+
+LON:{tag:"거래유형 코드",title:"LON — 대출실행 (Loan)",html:`
+<p>신규 여신을 실행해 은행이 고객에게 <b>돈을 빌려주는</b> 거래입니다.</p>
+<h5>왜 차단하나</h5>
+<p>사망자 명의로 대출이 실행되면 그 채무는 상속인에게 승계됩니다. 명의도용 범죄의 전형적인 수법이기도 합니다. 은행 입장에서도 상환 주체가 없는 부실 여신이 됩니다.</p>
+<p>본 프로젝트의 범위에는 대출 원장이 없지만, <b>차단 대상 거래유형으로는 정의</b>해 두었습니다. 규칙 테이블에 행만 추가하면 여신 시스템이 붙었을 때 바로 동작합니다.</p>
+<div class="note">응답코드 <b>D004</b> — "사망자 명의로 신규 여신을 실행할 수 없습니다"</div>`},
+
+/* ---------- 예외인출 상태 ---------- */
+REQ:{tag:"예외인출 상태",title:"REQ — 접수 (Request)",html:`
+<p>유가족이 창구에서 예외인출을 <b>신청한 직후</b>의 상태입니다.</p>
+<h5>이 시점에 기록되는 것</h5>
+<ul>
+<li>누가 신청했는가 — 신청인 이름과 <b>사망자와의 관계</b>(배우자·직계비속 등)</li>
+<li>얼마를 신청했는가 — <code>request_amt</code></li>
+<li>어디로 보낼 것인가 — 지정 수취처 <code>payee_id</code></li>
+<li>무슨 사유인가 — 치료비 / 장례비</li>
+</ul>
+<p>아직 <b>돈은 전혀 움직이지 않습니다.</b> 잔액에도 변화가 없습니다.</p>`},
+
+DOC:{tag:"예외인출 상태",title:"DOC — 서류검토 (Document)",html:`
+<p>제출된 증빙서류를 확인하는 단계입니다. 서류는 <code>EXC_DOCUMENT</code> 테이블에 <b>종류별로 한 행씩</b> 기록됩니다.</p>
+<h5>확인하는 서류</h5>
+<ul>
+<li>가족관계증명서 — 신청인이 상속인이 맞는지</li>
+<li>사망진단서 — 사망 사실 확인</li>
+<li>진료비 영수증 / 장례비 견적서 — 금액의 근거</li>
+</ul>
+<p>각 서류마다 <b>적합 · 부적합 · 보완요청</b> 중 하나로 검증 결과를 남깁니다. 하나라도 부적합이면 반려(REJ)로 갑니다.</p>
+<div class="note">샘플 데이터의 신청 2번이 이 경로입니다. 진료비 영수증이 <b>부적합</b>으로 판정되어 반려되었습니다.</div>`},
+
+APV:{tag:"예외인출 상태",title:"APV — 승인 (Approval)",html:`
+<p>책임자가 지급을 승인한 상태입니다. 본 설계에서는 <b>2단계 승인</b>을 적용했습니다.</p>
+<h5>왜 2단계인가</h5>
+<p>사망자 자금을 움직이는 일이라 한 사람의 판단으로 결정하면 위험합니다. 담당자가 서류를 확인하고, 책임자가 지급을 승인하는 구조입니다.</p>
+<h5>테이블 설계</h5>
+<p>승인을 <code>EXC_REQUEST</code>의 컬럼으로 두지 않고 <code>EXC_APPROVAL</code> 테이블로 분리했습니다. 차수가 늘어날 수 있고, <b>각 차수의 승인자와 시각이 개별적으로 보존</b>되어야 하기 때문입니다.</p>`},
+
+REJ:{tag:"예외인출 상태",title:"REJ — 반려 (Reject)",html:`
+<p>서류검토 또는 승인 단계에서 <b>거절된</b> 상태입니다. 어느 단계에서든 이쪽으로 빠질 수 있습니다.</p>
+<h5>DB가 강제하는 규칙</h5>
+<p>반려 상태인데 사유가 비어 있으면 나중에 아무도 이유를 설명할 수 없습니다. 그래서 이런 제약을 걸었습니다.</p>
+<p><code>CHECK (exc_status_cd &lt;&gt; 'REJ' OR reject_reason_desc IS NOT NULL)</code></p>
+<p>상태가 REJ라면 반드시 사유가 있어야 한다는 뜻입니다. 사유 없이 반려로 저장하려 하면 DB가 거부합니다.</p>`},
+
+PAY:{tag:"예외인출 상태",title:"PAY — 이체실행 (Payout)",html:`
+<p>승인된 금액을 <b>실제로 이체하는</b> 단계입니다. 이때 비로소 잔액이 줄어듭니다.</p>
+<h5>일어나는 일</h5>
+<ul>
+<li><code>ACCT_TXN</code>에 TRO(이체출금) 거래가 한 건 생성됩니다</li>
+<li><code>EXC_PAYOUT</code>에 지급 기록이 한 건 생성됩니다</li>
+<li>두 기록은 <code>txn_unique_no</code>로 연결됩니다</li>
+</ul>
+<div class="note">지급 대상은 반드시 <b>사전 등록된 수취처</b>입니다. 상속인 개인계좌는 구조적으로 불가능합니다 — 슬라이드 11 참조.</div>`},
+
+CMP:{tag:"예외인출 상태",title:"CMP — 완료 (Complete)",html:`
+<p>이체가 정상적으로 끝나 신청 건이 종결된 상태입니다.</p>
+<h5>왜 PAY와 CMP를 나누나</h5>
+<p>이체를 요청했지만 <b>결과를 받지 못한</b> 상황이 실제로 존재하기 때문입니다. 통신 장애나 상대 은행 응답 지연이 그 예입니다.</p>
+<p>PAY에서 멈춰 있는 건은 "이체를 보냈는데 확인이 안 된 건"으로 조회되어 담당자가 추적할 수 있습니다. 두 상태를 합치면 이 구분이 사라집니다.</p>`},
+
+/* ---------- 예외인출 테이블 ---------- */
+tbl_req:{tag:"테이블 구조",title:"EXC_REQUEST — 예외인출 신청",html:`
+<p>신청 한 건의 <b>전체 상태를 대표하는</b> 중심 테이블입니다. 나머지 예외인출 테이블들이 모두 이 테이블을 참조합니다.</p>
+<table>
+<tr><th>속성</th><th>역할</th></tr>
+<tr><td><code>exc_request_id</code></td><td>기본키. 시스템이 부여하는 일련번호</td></tr>
+<tr><td><code>cust_no</code></td><td>사망 고객. 어느 사망 건인지 명시</td></tr>
+<tr><td><code>acct_no</code></td><td>출금할 계좌. 고객이 여러 계좌를 가질 수 있어 필요</td></tr>
+<tr><td><code>payee_id</code></td><td>신청 시 지정한 수취처</td></tr>
+<tr><td><code>applicant_nm</code></td><td>신청인 이름</td></tr>
+<tr><td><code>applicant_rel_cd</code></td><td>사망자와의 관계 — 배우자·직계비속 등</td></tr>
+<tr><td><code>exc_reason_cd</code></td><td>사유 — 치료비 / 장례비 / 기타</td></tr>
+<tr><td><code>request_amt</code></td><td>신청 금액. 실제 지급액과 다를 수 있음</td></tr>
+<tr><td><code>exc_status_cd</code></td><td>현재 상태 — REQ·DOC·APV·REJ·PAY·CMP</td></tr>
+<tr><td><code>reject_reason_desc</code></td><td>반려 사유. 반려일 때만 값이 있음</td></tr>
+</table>
+<h5>고객번호와 계좌번호를 둘 다 갖는 이유</h5>
+<p>계좌를 알면 고객을 알 수 있어 중복처럼 보입니다. 하지만 <b>한 고객이 여러 계좌를 가질 수 있어 어느 계좌에서 인출할지 지정</b>해야 하고, 조회 시 조인을 줄이는 효과도 있습니다.</p>`},
+
+tbl_doc:{tag:"테이블 구조",title:"EXC_DOCUMENT — 증빙서류",html:`
+<p>신청 한 건에 서류가 여러 장 붙기 때문에 별도 테이블로 분리했습니다.</p>
+<table>
+<tr><th>속성</th><th>역할</th></tr>
+<tr><td><code>document_id</code></td><td>기본키</td></tr>
+<tr><td><code>exc_request_id</code></td><td>어느 신청의 서류인지</td></tr>
+<tr><td><code>doc_type_cd</code></td><td>서류 종류 — 가족관계증명서·사망진단서·영수증·견적서</td></tr>
+<tr><td><code>receive_dtm</code></td><td>접수 일시</td></tr>
+<tr><td><code>verify_result_cd</code></td><td>검증 결과 — 적합 / 부적합 / 보완요청</td></tr>
+<tr><td><code>file_ref</code></td><td>스캔 파일의 저장 경로</td></tr>
+</table>
+<h5>파일을 DB에 넣지 않은 이유</h5>
+<p>이미지를 <code>BLOB</code>으로 저장하면 DB 용량이 급격히 늘고 백업·복제 부담이 커집니다. 실무에서는 파일을 별도 스토리지에 두고 <b>경로만 보관</b>합니다.</p>
+<h5>같은 서류를 두 번 낼 수 없다</h5>
+<p><code>UNIQUE (exc_request_id, doc_type_cd)</code>로 신청 건당 서류 종류별 한 장만 허용합니다.</p>`},
+
+tbl_apv:{tag:"테이블 구조",title:"EXC_APPROVAL — 승인 이력",html:`
+<p>2단계 승인의 <b>각 차수를 한 행씩</b> 기록합니다.</p>
+<table>
+<tr><th>속성</th><th>역할</th></tr>
+<tr><td><code>approval_id</code></td><td>기본키</td></tr>
+<tr><td><code>exc_request_id</code></td><td>어느 신청의 승인인지</td></tr>
+<tr><td><code>approval_seq</code></td><td>승인 차수 — 1차, 2차</td></tr>
+<tr><td><code>approver_id</code></td><td>승인자 사번</td></tr>
+<tr><td><code>approval_dtm</code></td><td>승인 일시</td></tr>
+<tr><td><code>approval_result_cd</code></td><td>승인 / 반려</td></tr>
+<tr><td><code>opinion_desc</code></td><td>승인자 의견</td></tr>
+</table>
+<h5>왜 별도 테이블인가</h5>
+<p>승인 정보를 <code>EXC_REQUEST</code>의 컬럼으로 두면 <code>approver1_id</code>, <code>approver2_id</code>처럼 <b>차수만큼 컬럼이 늘어납니다.</b> 3차 승인이 필요해지면 테이블 구조를 바꿔야 합니다. 행으로 쌓으면 구조 변경 없이 대응됩니다.</p>
+<p><code>UNIQUE (exc_request_id, approval_seq)</code>로 같은 차수가 두 번 기록되는 것을 막습니다.</p>`},
+
+tbl_pay:{tag:"테이블 구조",title:"EXC_PAYOUT — 예외인출 지급",html:`
+<p>이 설계에서 <b>가장 중요한 제약이 걸린 테이블</b>입니다.</p>
+<table>
+<tr><th>속성</th><th>역할</th></tr>
+<tr><td><code>payout_id</code></td><td>기본키</td></tr>
+<tr><td><code>exc_request_id</code></td><td>어느 신청의 지급인지. <b>UNIQUE</b></td></tr>
+<tr><td><code>payee_id</code></td><td>실제 수취처. <b>NOT NULL + FK</b></td></tr>
+<tr><td><code>payout_amt</code></td><td>실제 지급 금액. 감액 승인 가능</td></tr>
+<tr><td><code>txn_unique_no</code></td><td>생성된 거래원장의 거래고유번호</td></tr>
+<tr><td><code>payout_dtm</code></td><td>실행 일시</td></tr>
+</table>
+<h5>두 가지 장치</h5>
+<ul>
+<li><code>payee_id</code>가 <b>NOT NULL + FK</b> → 등록되지 않은 계좌로는 지급 기록을 만들 수조차 없음</li>
+<li><code>exc_request_id</code>에 <b>UNIQUE</b> → 한 신청에 지급은 단 한 번</li>
+</ul>
+<div class="note">신청 시 <code>payee_id</code>와 지급 시 <code>payee_id</code>를 <b>따로 보관</b>합니다. 승인 후 수취처가 바뀌는 사고를 검증할 수 있게 하기 위해서입니다.</div>`},
+
+tbl_payee:{tag:"테이블 구조",title:"PAYEE_REGISTRY — 지정 수취처",html:`
+<p>병원·요양원·장례식장을 <b>사전에 등록해 두는</b> 마스터 테이블입니다. 이 테이블이 존재하는 이유는 단 하나, 예외인출 대금이 유가족 개인계좌로 나가지 못하게 하기 위해서입니다.</p>
+<table>
+<tr><th>속성</th><th>역할</th></tr>
+<tr><td><code>payee_id</code></td><td>기본키</td></tr>
+<tr><td><code>payee_type_cd</code></td><td>구분 — 병원 / 요양원 / 장례식장</td></tr>
+<tr><td><code>payee_nm</code></td><td>기관명</td></tr>
+<tr><td><code>biz_reg_no</code></td><td>사업자등록번호. <b>UNIQUE</b></td></tr>
+<tr><td><code>org_cd</code></td><td>수취 은행코드</td></tr>
+<tr><td><code>acct_no</code></td><td>수취 계좌번호</td></tr>
+<tr><td><code>status_cd</code></td><td>등록 상태 — 정상 / 거래중지</td></tr>
+</table>
+<h5>사업자등록번호에 UNIQUE를 건 이유</h5>
+<p>같은 장례식장이 계좌만 바꿔 중복 등록되면, 등록 심사를 우회하는 통로가 됩니다. 사업자 단위로 하나만 허용합니다.</p>
+<p>형식 검증도 함께 걸었습니다 — <code>CHECK (biz_reg_no REGEXP '^[0-9]{10}$')</code></p>`},
+
+/* ---------- SQL 키워드 ---------- */
+bigint:{tag:"자료형",title:"BIGINT — 큰 정수",html:`
+<p>8바이트 정수 자료형입니다. 약 <b>922경</b>까지 담을 수 있습니다.</p>
+<h5>어디에 쓰나</h5>
+<p>주로 <b>대리키</b>(시스템이 자동으로 매기는 일련번호)에 씁니다. <code>AUTO_INCREMENT</code>와 함께 쓰면 1, 2, 3… 으로 자동 증가합니다.</p>
+<h5>INT를 쓰지 않은 이유</h5>
+<p><code>INT</code>는 약 21억까지입니다. 거래원장처럼 행이 계속 쌓이는 테이블에서는 몇 년 만에 한계에 도달할 수 있고, 그때 자료형을 바꾸는 작업은 서비스 중단을 동반합니다.</p>
+<h5>UNSIGNED를 피한 이유</h5>
+<p><code>BIGINT UNSIGNED</code>는 음수를 버리고 범위를 두 배로 늘리지만, Java JDBC에서 <code>BigInteger</code>로 매핑됩니다. <code>long</code>으로 간단히 받을 수 없어 코드가 번거로워집니다.</p>`},
+
+notnull:{tag:"제약조건",title:"NOT NULL — 값이 반드시 있어야 함",html:`
+<p>이 컬럼은 <b>비워 둘 수 없다</b>는 선언입니다. 값 없이 저장하려 하면 DB가 거부합니다.</p>
+<h5>NULL이란</h5>
+<p>"값이 없음" 또는 "아직 모름"을 뜻하는 특수한 상태입니다. 숫자 0이나 빈 문자열과는 다릅니다. 0은 "영원이라는 값"이고, NULL은 "값이 존재하지 않음"입니다.</p>
+<h5>이 프로젝트에서 중요한 이유</h5>
+<p><code>exc_payout.payee_id</code>에 <code>NOT NULL</code>을 걸었기 때문에, 수취처를 비워 둔 채 지급 기록을 만들 수 없습니다. 만약 NULL을 허용했다면 FK 제약이 무력화됩니다 — <b>NULL은 FK 검사를 통과</b>하기 때문입니다.</p>
+<div class="note">NOT NULL과 FOREIGN KEY는 <b>짝으로 걸어야</b> 의미가 있습니다. 하나만으로는 빈틈이 생깁니다.</div>`},
+
+decimal:{tag:"자료형",title:"DECIMAL(18,2) — 정확한 십진 소수",html:`
+<p>전체 18자리, 그중 소수점 아래 2자리를 담는 자료형입니다. 금액 컬럼에 사용했습니다.</p>
+<h5>FLOAT / DOUBLE을 쓰면 안 되는 이유</h5>
+<p>FLOAT와 DOUBLE은 이진 부동소수점이라 <b>십진 소수를 정확히 표현하지 못합니다.</b> 0.1 + 0.2를 계산하면 0.30000000000000004가 나오는 그 현상입니다.</p>
+<p>금액에서 이런 오차가 누적되면 잔액과 거래원장 합계가 1원씩 어긋나고, 은행에서는 이게 사고입니다.</p>
+<h5>Java에서는</h5>
+<p><code>BigDecimal</code>로 받습니다. <code>double</code>로 받으면 DB에서 정확하게 보관한 값을 코드에서 망가뜨리게 됩니다.</p>
+<div class="note">금액은 <b>항상 양수</b>로 저장하고 방향은 <code>dr_cr_cd</code>(입금 I / 출금 O)로 표현합니다. 부호로 방향을 나타내면 음수가 들어왔을 때 출금인지 데이터 오류인지 구분할 수 없습니다.</div>`},
+
+unique:{tag:"제약조건",title:"UNIQUE — 중복 금지",html:`
+<p>해당 컬럼(또는 컬럼 조합)에 <b>같은 값이 두 번 들어올 수 없게</b> 합니다.</p>
+<h5>PRIMARY KEY와 무엇이 다른가</h5>
+<ul>
+<li>PRIMARY KEY는 테이블당 <b>하나</b>, UNIQUE는 <b>여러 개</b> 가능</li>
+<li>PRIMARY KEY는 NULL 불가, UNIQUE는 NULL 허용</li>
+<li>둘 다 자동으로 인덱스가 만들어집니다</li>
+</ul>
+<h5>이 프로젝트에서 UNIQUE가 하는 일</h5>
+<p>성능이 아니라 <b>업무 규칙을 스키마로 강제</b>하는 용도로 썼습니다.</p>
+<table>
+<tr><th>대상</th><th>강제하는 규칙</th></tr>
+<tr><td><code>DEATH_BLOCK.cust_no</code></td><td>한 고객에게 차단은 한 건</td></tr>
+<tr><td><code>EXC_PAYOUT.exc_request_id</code></td><td>한 신청에 지급은 한 번 (이중지급 차단)</td></tr>
+<tr><td><code>ACCT_TXN.txn_unique_no</code></td><td>같은 거래를 두 번 기표할 수 없음</td></tr>
+<tr><td><code>CUST.rrn_hash</code></td><td>동일인이 고객번호 두 개를 가질 수 없음</td></tr>
+</table>`},
+
+ukname:{tag:"명명 규칙",title:"uk_expay_req — 제약조건 이름",html:`
+<p>제약조건에 붙인 <b>이름</b>입니다. 이름을 붙이지 않으면 MySQL이 자동으로 지어 주지만, 직접 짓는 편이 훨씬 유용합니다.</p>
+<h5>명명 규칙</h5>
+<p><code>uk_expay_req</code> = <b>uk</b>(unique key) + <b>expay</b>(exc_payout 테이블) + <b>req</b>(exc_request_id 컬럼)</p>
+<table>
+<tr><th>접두어</th><th>의미</th></tr>
+<tr><td><code>pk_</code></td><td>기본키</td></tr>
+<tr><td><code>uk_</code></td><td>유니크 제약</td></tr>
+<tr><td><code>fk_</code></td><td>외래키</td></tr>
+<tr><td><code>ck_</code></td><td>체크 제약</td></tr>
+<tr><td><code>ix_</code></td><td>일반 인덱스</td></tr>
+</table>
+<h5>왜 이름이 중요한가</h5>
+<p>제약을 위반하면 오류 메시지에 <b>그 이름이 그대로 나옵니다.</b> 이름이 의미를 담고 있으면 무엇을 위반했는지 즉시 알 수 있습니다.</p>
+<p><code>Duplicate entry '1' for key 'exc_payout.uk_expay_req'</code></p>
+<p>이 메시지만 보고 "예외인출 신청 1번에 지급이 이미 있구나"를 파악할 수 있습니다.</p>`},
+
+constraint:{tag:"SQL 키워드",title:"CONSTRAINT — 제약조건에 이름 붙이기",html:`
+<p>제약조건을 정의할 때 <b>이름을 지정하는</b> 키워드입니다. 제약조건 자체를 만드는 명령이 아니라, 뒤에 오는 제약에 이름을 다는 역할입니다.</p>
+<h5>이름을 붙이는 경우와 아닌 경우</h5>
+<p>이름 없이 — <code>FOREIGN KEY (payee_id) REFERENCES payee_registry (payee_id)</code><br>
+MySQL이 <code>exc_payout_ibfk_1</code> 같은 이름을 자동 생성합니다.</p>
+<p>이름을 붙여 — <code>CONSTRAINT fk_expay_payee FOREIGN KEY (payee_id) ...</code></p>
+<h5>왜 직접 붙이나</h5>
+<ul>
+<li><b>오류 메시지가 읽힙니다</b> — 자동 생성 이름은 무엇을 위반했는지 알려주지 않습니다</li>
+<li><b>나중에 지우거나 바꿀 수 있습니다</b> — <code>ALTER TABLE ... DROP CONSTRAINT fk_expay_payee</code></li>
+<li>여러 사람이 작업할 때 일관된 규칙을 유지할 수 있습니다</li>
+</ul>
+<div class="note">본 프로젝트의 제약조건 <b>126개</b>에 모두 이름을 붙였습니다. 시연에서 오류 메시지를 보여줄 때 이 이름이 그대로 나타납니다.</div>`},
+
+fk:{tag:"제약조건",title:"FOREIGN KEY — 외래키",html:`
+<p><b>다른 테이블에 실제로 존재하는 값만</b> 들어올 수 있도록 강제하는 제약입니다. 참조 무결성을 보장하는 핵심 장치입니다.</p>
+<h5>어떻게 동작하나</h5>
+<p><code>exc_payout.payee_id</code>에 <code>payee_registry</code>를 가리키는 FK를 걸면,</p>
+<ul>
+<li><code>payee_registry</code>에 없는 <code>payee_id</code>를 넣으려 하면 <b>거부</b></li>
+<li>참조되고 있는 <code>payee_registry</code> 행을 지우려 하면 <b>거부</b></li>
+</ul>
+<h5>부모와 자식</h5>
+<p>참조되는 쪽을 부모, 참조하는 쪽을 자식이라고 부릅니다. 여기서는 <code>payee_registry</code>가 부모, <code>exc_payout</code>이 자식입니다.</p>
+<h5>이 프로젝트에서의 의미</h5>
+<p>FK 하나로 "예외인출 대금은 등록된 병원·장례식장으로만 나갈 수 있다"는 <b>정책을 스키마에 새겼습니다.</b> 애플리케이션 코드에 버그가 있어도 DB가 막습니다.</p>
+<div class="note">전체 <b>67개</b>의 FK를 설정했습니다. 다만 계층 경계를 넘는 6개 관계는 의도적으로 제외했습니다 — 슬라이드 12 참조.</div>`},
+
+references:{tag:"SQL 키워드",title:"REFERENCES — 무엇을 참조하는가",html:`
+<p>FOREIGN KEY가 <b>어느 테이블의 어느 컬럼</b>을 가리키는지 지정하는 부분입니다.</p>
+<p><code>FOREIGN KEY (payee_id) REFERENCES payee_registry (payee_id)</code></p>
+<p>앞의 괄호는 <b>내 테이블의 컬럼</b>, <code>REFERENCES</code> 뒤는 <b>부모 테이블과 그 컬럼</b>입니다. 이름이 같을 필요는 없습니다.</p>
+<h5>참조 대상의 조건</h5>
+<p>부모 컬럼은 <b>PRIMARY KEY이거나 UNIQUE</b>여야 합니다. 값이 유일하지 않으면 어느 행을 가리키는지 알 수 없기 때문입니다.</p>
+<h5>삭제·수정 시 동작</h5>
+<table>
+<tr><th>옵션</th><th>부모를 지우면</th></tr>
+<tr><td><code>RESTRICT</code></td><td>거부 — <b>본 프로젝트가 선택</b></td></tr>
+<tr><td><code>CASCADE</code></td><td>자식도 함께 삭제</td></tr>
+<tr><td><code>SET NULL</code></td><td>자식의 값을 NULL로</td></tr>
+</table>
+<p>금융 데이터는 지우는 것이 아니라 상태를 바꾸는 것입니다. 실수로 고객 한 명을 지웠을 때 거래원장까지 연쇄 삭제되면 복구가 불가능하므로 전부 <code>RESTRICT</code>로 두었습니다.</p>`},
+
+check:{tag:"제약조건",title:"CHECK — 조건을 만족해야 저장",html:`
+<p>컬럼 값이 <b>지정한 조건식을 만족할 때만</b> 저장을 허용합니다. MySQL 8.0.16부터 실제로 동작합니다.</p>
+<h5>본 프로젝트의 CHECK 예시</h5>
+<table>
+<tr><th>제약</th><th>막는 것</th></tr>
+<tr><td><code>txn_amt &gt; 0</code></td><td>금액이 0이거나 음수인 거래</td></tr>
+<tr><td><code>dr_cr_cd IN ('I','O')</code></td><td>정의되지 않은 입출금구분</td></tr>
+<tr><td><code>death_report_dt &gt;= death_dt</code></td><td>사망일보다 앞선 신고일</td></tr>
+<tr><td><code>valid_to_dtm &gt; valid_from_dtm</code></td><td>거꾸로 된 유효구간</td></tr>
+</table>
+<h5>가장 중요한 CHECK</h5>
+<p><code>block_start_dtm = TIMESTAMP(DATE_ADD(death_report_dt, INTERVAL 1 DAY))</code></p>
+<p>차단개시일시가 <b>반드시 사망신고일 다음 날 0시</b>여야 한다는 제도의 핵심 규칙을 DB가 직접 강제합니다. 어떤 프로그램이 접속하든 틀린 값을 넣을 수 없습니다.</p>
+<div class="note">CHECK 위반 시 오류번호는 <b>3819</b>입니다.</div>`},
+
+pk:{tag:"제약조건",title:"PRIMARY KEY — 기본키",html:`
+<p>테이블의 각 행을 <b>유일하게 식별</b>하는 컬럼입니다. 중복 불가, NULL 불가이며 테이블당 하나만 존재합니다.</p>
+<h5>자연키와 대리키</h5>
+<p><b>자연키</b>는 업무상 이미 존재하는 식별자입니다. 고객번호, 계좌번호, 기관코드가 여기 해당합니다.</p>
+<p><b>대리키</b>는 시스템이 만든 일련번호입니다. 이력·로그·거래 테이블처럼 자연스러운 식별자가 없거나 복합키가 길어지는 경우에 씁니다.</p>
+<h5>대리키를 쓴 이유</h5>
+<ul>
+<li>자연키가 여러 컬럼이면 자식 테이블마다 그만큼 끌고 가야 합니다</li>
+<li>InnoDB는 기본키가 곧 데이터 정렬 순서라, <b>단조 증가하는 키</b>가 삽입 성능에 유리합니다</li>
+<li>자연키의 정의가 바뀌어도 대리키는 영향받지 않습니다</li>
+</ul>
+<p>본 프로젝트는 30개 테이블 중 자연키 7개, 대리키 23개입니다.</p>`},
+
+/* ---------- 정규화 ---------- */
+denorm:{tag:"핵심 개념",title:"반정규화 (Denormalization)",html:`
+<p>정규화로 잘 나눠 놓은 구조를 <b>일부러 되돌려</b> 중복을 허용하는 설계 기법입니다.</p>
+<h5>왜 일부러 중복을 만드나</h5>
+<p>정규화는 데이터 정합성에는 좋지만, 값을 꺼낼 때마다 여러 테이블을 <b>조인하거나 매번 계산</b>해야 합니다. 데이터가 쌓일수록 이게 느려집니다.</p>
+<h5>이 프로젝트의 예</h5>
+<p><code>ACCT.balance_amt</code>(잔액)는 이론상 거래원장의 입출금 합계로 구할 수 있습니다.</p>
+<p><code>SELECT SUM(...) FROM acct_txn WHERE acct_no = ?</code></p>
+<p>거래가 10건일 때는 순식간이지만, 20년치 수만 건이 쌓이면 잔액 조회 한 번에 수만 행을 훑어야 합니다. 그래서 잔액을 <b>미리 계산해 컬럼으로</b> 들고 있습니다.</p>
+<h5>공짜가 아니다</h5>
+<p>중복이 생기면 <b>둘이 어긋날 위험</b>이 따라옵니다. 그래서 잔액과 원장 합계를 맞춰 보는 검증 쿼리가 반드시 필요합니다. 슬라이드 17의 "검증 1"이 바로 그것입니다.</p>
+<h5>판단 기준 세 가지</h5>
+<p>아래를 <b>모두</b> 만족할 때만 허용했습니다.</p>
+<ul>
+<li><b>조회가 쓰기보다 훨씬 잦은가</b> — 잔액은 거래 한 번에 수십 번 조회됩니다</li>
+<li><b>재계산 비용이 데이터 증가에 비례하는가</b> — 거래가 쌓일수록 SUM이 무거워집니다</li>
+<li><b>어긋남을 검증할 방법이 있는가</b> — 대사 쿼리로 확인 가능해야 합니다</li>
+</ul>
+<h5>반정규화가 아닌 것과 헷갈리지 말 것</h5>
+<p><code>payee_id</code>가 <code>EXC_REQUEST</code>와 <code>EXC_PAYOUT</code> 양쪽에 있는 것은 반정규화가 아닙니다. 하나는 "신청 시 지정한 수취처", 다른 하나는 "실제 지급한 수취처"로 <b>의미가 다른 별개 컬럼</b>입니다. 같은 값의 복사본이 아니므로 중복이 아닙니다.</p>
+<div class="note">반정규화는 <b>근거와 대가를 함께 설명할 수 있을 때만</b> 정당합니다. 이유 없이 중복을 두면 그냥 설계 실수입니다.</div>`},
+
+nf1:{tag:"정규화",title:"제1정규형 (1NF)",html:`
+<p>모든 속성이 <b>더 이상 나눌 수 없는 하나의 값</b>을 갖는 상태입니다.</p>
+<h5>위반하는 예</h5>
+<p>예외인출 신청 테이블에 이런 컬럼이 있다면 1NF 위반입니다.</p>
+<p><code>documents = '가족관계증명서, 사망진단서, 영수증'</code></p>
+<p>한 칸에 여러 값이 들어 있어서 "영수증을 낸 신청만 찾아라" 같은 질의를 할 수 없고, 서류별 검증 결과를 따로 기록할 수도 없습니다.</p>
+<h5>본 프로젝트의 처리</h5>
+<p>서류를 <code>EXC_DOCUMENT</code> 테이블로 분리해 <b>한 장당 한 행</b>으로 저장했습니다. 종류·접수일시·검증결과를 각각 관리할 수 있게 됩니다.</p>`},
+
+nf2:{tag:"정규화",title:"제2정규형 (2NF)",html:`
+<p>1NF를 만족하면서, 기본키의 <b>일부에만 의존하는 속성</b>이 없는 상태입니다. 부분 함수 종속 제거라고 부릅니다.</p>
+<h5>기본키가 한 컬럼이면</h5>
+<p>애초에 "일부"라는 게 존재하지 않으므로 자동으로 2NF입니다. 복합키가 있을 때만 검토 대상입니다.</p>
+<h5>본 프로젝트의 복합키</h5>
+<p><code>CODE_DETAIL</code>의 <code>(group_cd, code_cd)</code> 하나뿐입니다.</p>
+<p>이 테이블의 <code>code_nm</code>(코드명)은 그룹과 코드값이 <b>둘 다 있어야</b> 정해집니다. <code>CUST_ST</code>의 <code>10</code>은 "정상"이지만 <code>EXC_RSN</code>의 <code>10</code>은 "치료비"입니다. 키의 일부만으로는 결정되지 않으므로 부분 종속이 없습니다.</p>`},
+
+nf3:{tag:"정규화",title:"제3정규형 (3NF)",html:`
+<p>2NF를 만족하면서, <b>기본키가 아닌 속성끼리 서로를 결정하지 않는</b> 상태입니다. 이행 함수 종속 제거라고 부릅니다.</p>
+<h5>위반하는 예</h5>
+<p>거래원장에 이렇게 두면 3NF 위반입니다.</p>
+<p><code>counter_org_cd</code>(상대 기관코드) → <code>counter_org_nm</code>(상대 기관명)</p>
+<p>기관명은 거래(기본키)가 아니라 <b>기관코드</b>가 결정합니다. 기본키 → 기관코드 → 기관명으로 두 단계를 거치는 이행 종속입니다.</p>
+<h5>무엇이 문제인가</h5>
+<ul>
+<li>은행 이름이 바뀌면 <b>거래원장 수백만 건을 전부 수정</b>해야 합니다</li>
+<li>같은 기관코드인데 이름이 다르게 저장되는 사고가 생깁니다</li>
+</ul>
+<h5>본 프로젝트의 처리</h5>
+<p>기관명은 <code>ORG_CODE</code> 테이블에만 두고, 거래원장에는 <b>코드만</b> 저장합니다. 이름이 필요하면 조인해서 가져옵니다. 코드명·상태명도 모두 같은 방식입니다.</p>
+<div class="note">본 모델은 3NF를 만족합니다. 단 <span class="t" data-t="denorm">의도적 반정규화</span> 3건은 근거를 갖고 예외로 두었습니다.</div>`},
+
+/* ---------- 기타 ---------- */
+scd:{tag:"설계 기법",title:"SCD Type 2 — 이력 보존 방식",html:`
+<p>Slowly Changing Dimension Type 2. 값이 바뀔 때 <b>기존 행을 덮어쓰지 않고 새 행을 추가</b>해 변경 이력을 남기는 방식입니다.</p>
+<h5>덮어쓰면 무슨 일이 생기나</h5>
+<p>고객 상태를 정상에서 사망으로 <code>UPDATE</code>해 버리면, "이 고객이 <b>언제부터</b> 사망 상태였는가"를 증명할 수 없습니다. 감사나 분쟁에서 답할 수 없다는 뜻입니다.</p>
+<h5>유효기간 방식</h5>
+<table>
+<tr><th>cust_no</th><th>상태</th><th>valid_from</th><th>valid_to</th></tr>
+<tr><td>C002</td><td>정상</td><td>2008-05-19</td><td>2026-09-13</td></tr>
+<tr><td>C002</td><td>사망</td><td>2026-09-13</td><td>9999-12-31</td></tr>
+</table>
+<p>특정 시점의 상태를 묻는 질의는 이렇게 됩니다.</p>
+<p><code>WHERE valid_from_dtm &lt;= ? AND valid_to_dtm &gt; ?</code></p>
+<h5>주의할 점</h5>
+<p>새 행을 넣기 전에 <b>기존 현재행을 먼저 닫아야</b> 합니다. 순서를 바꾸면 현재행이 두 개가 되어 UNIQUE 제약에 걸립니다. 이 오류가 나는 것이 정상 동작입니다.</p>`},
+
+sentinel:{tag:"설계 기법",title:"센티널 값 (Sentinel Value)",html:`
+<p>"아직 끝나지 않음"을 NULL 대신 <b>의미를 갖는 특정 값</b>으로 표현하는 기법입니다. 여기서는 <code>9999-12-31 23:59:59.999</code>를 씁니다.</p>
+<h5>왜 NULL이 아닌가</h5>
+<p>MySQL의 UNIQUE 제약은 <b>NULL을 서로 다른 값으로 취급</b>합니다. <code>(C002, NULL)</code> 행이 몇 개든 중복으로 보지 않아 제약이 아무것도 보장하지 못합니다.</p>
+<p>센티널을 쓰면 <code>(C002, '9999-12-31...')</code>이 정확히 하나만 존재할 수 있습니다.</p>
+<h5>쿼리도 단순해진다</h5>
+<p>NULL이면 <code>(valid_to IS NULL OR valid_to &gt; ?)</code>처럼 조건을 나눠 써야 하지만, 센티널이면 <code>valid_to &gt; ?</code> 하나로 끝납니다.</p>
+<h5>어디에 쓰면 안 되나</h5>
+<p><code>close_dt</code>(계좌 해지일)처럼 <b>사건의 발생 여부</b>를 뜻하는 컬럼에는 쓰면 안 됩니다. 9999년을 넣으면 "9999년에 해지될 예정"이라고 거짓말하는 셈이고, 평균 존속기간 같은 집계가 왜곡됩니다. NULL이면 집계에서 자동으로 제외됩니다.</p>`},
+
+nullunique:{tag:"MySQL 특성",title:"UNIQUE와 NULL의 관계",html:`
+<p>SQL 표준에서 NULL은 "값을 모름"이므로 <b>NULL과 NULL이 같은지 판단할 수 없습니다.</b> 그래서 UNIQUE 제약은 NULL을 중복으로 보지 않습니다.</p>
+<h5>실제로 벌어지는 일</h5>
+<p><code>UNIQUE (cust_no, valid_to_dtm)</code>이 걸려 있어도,</p>
+<table>
+<tr><th>cust_no</th><th>valid_to_dtm</th><th>결과</th></tr>
+<tr><td>C002</td><td>NULL</td><td>저장됨</td></tr>
+<tr><td>C002</td><td>NULL</td><td><b>또 저장됨</b></td></tr>
+<tr><td>C002</td><td>9999-12-31</td><td>저장됨</td></tr>
+<tr><td>C002</td><td>9999-12-31</td><td><b>거부됨</b></td></tr>
+</table>
+<p>NULL로 두면 "현재 행은 고객당 하나"라는 규칙을 DB가 전혀 지켜 주지 못합니다. 배치가 두 번 돌거나 트랜잭션이 꼬이면 현재 행이 두 개가 되고, 이후 모든 조회가 두 건을 반환하며 시스템이 무너집니다.</p>
+<div class="note">이것이 종료일시를 NULL이 아니라 <b>9999-12-31로 채운 진짜 이유</b>입니다.</div>`},
+
+generated:{tag:"MySQL 기능",title:"GENERATED ALWAYS AS — 생성컬럼",html:`
+<p>값을 직접 넣는 컬럼이 아니라, <b>MySQL이 정해진 식으로 자동 계산해 채우는</b> 컬럼입니다.</p>
+<p><code>cust_status_grp CHAR(10) GENERATED ALWAYS AS ('CUST_ST') STORED</code></p>
+<p>이 컬럼은 항상 <code>'CUST_ST'</code>가 됩니다. <code>INSERT</code> 문에 쓸 필요가 없고, 쓰면 오히려 오류가 납니다.</p>
+<h5>왜 이런 걸 만들었나</h5>
+<p><code>CODE_DETAIL</code>의 기본키가 <code>(group_cd, code_cd)</code> 복합키인데, <code>CUST</code> 테이블에는 <code>group_cd</code>가 없어 FK를 걸 수 없었습니다. FK는 부모의 기본키 <b>전체</b>를 참조해야 하기 때문입니다.</p>
+<p>고정값을 갖는 컬럼을 만들어 붙이면 복합 FK가 성립합니다.</p>
+<h5>얻은 것</h5>
+<p>"없는 코드"뿐 아니라 <b>"다른 그룹의 코드"까지</b> 막힙니다. 고객상태 컬럼에 예외인출 상태값 <code>REQ</code>를 넣으면 거부됩니다. 단일 FK나 CHECK로는 불가능한 검증입니다.</p>
+<h5>STORED와 VIRTUAL</h5>
+<p><code>STORED</code>는 값을 실제로 저장하고, <code>VIRTUAL</code>은 조회할 때마다 계산합니다. FK는 <b>STORED에만</b> 걸 수 있습니다.</p>`},
+
+index:{tag:"성능",title:"인덱스 (Index)",html:`
+<p>책 뒤의 찾아보기와 같습니다. 원하는 행을 <b>전부 훑지 않고</b> 바로 찾아가게 해 주는 자료구조입니다.</p>
+<h5>없으면 어떻게 되나</h5>
+<p>거래 100만 건에서 특정 계좌의 거래를 찾으려면 <b>100만 건을 전부 읽어야</b> 합니다. 인덱스가 있으면 수십 번의 비교로 끝납니다.</p>
+<h5>복합 인덱스의 순서가 중요하다</h5>
+<p><code>ACCT_TXN (acct_no, txn_dtm)</code>은 "계좌로 먼저 좁히고, 그 안에서 기간으로 좁힌다"는 뜻입니다. 순서를 바꾸면 "계좌별 기간 조회"에는 잘 듣지 않습니다.</p>
+<h5>공짜가 아니다</h5>
+<ul>
+<li>저장 공간을 추가로 씁니다</li>
+<li><code>INSERT</code>·<code>UPDATE</code> 때마다 인덱스도 갱신되어 쓰기가 느려집니다</li>
+</ul>
+<p>그래서 자주 쓰는 조회 패턴에만 만듭니다. PK·UNIQUE·FK는 <b>MySQL이 자동으로</b> 인덱스를 만들어 줍니다.</p>`},
+
+/* ---------- 계층 ---------- */
+core:{tag:"은행 시스템",title:"계정계 (Account System)",html:`
+<p>은행의 <b>심장</b>에 해당하는 시스템입니다. 고객·계좌·거래원장 등 핵심 원장을 관리합니다.</p>
+<h5>특징</h5>
+<ul>
+<li><b>정합성이 최우선</b> — 1원도 틀리면 안 됩니다</li>
+<li>모든 거래가 최종적으로 여기에 기록됩니다</li>
+<li>장애가 나면 은행 업무 전체가 멈춥니다</li>
+</ul>
+<p>본 프로젝트에서는 고객·계좌·거래원장에 더해 <b>사망차단·차단규칙·예외인출</b>을 계정계에 두었습니다. 잔액을 직접 움직이는 판단이기 때문입니다.</p>`},
+
+chnl:{tag:"은행 시스템",title:"채널계 (Channel System)",html:`
+<p>고객과 만나는 <b>접점</b>을 담당합니다. 창구, ATM, 인터넷뱅킹, 모바일앱, 오픈뱅킹이 모두 채널입니다.</p>
+<h5>역할</h5>
+<p>고객의 요청을 받아 계정계에 전달하고, 결과를 다시 고객에게 돌려줍니다. 원장을 직접 고치지는 않습니다.</p>
+<h5>본 프로젝트에서</h5>
+<p>요청(<code>CHNL_REQUEST</code>)과 응답(<code>CHNL_RESPONSE</code>)을 <b>별도 테이블로 분리</b>했습니다. 응답을 못 보낸 요청이 존재할 수 있고, 그 상태가 남아야 장애를 분석할 수 있기 때문입니다.</p>
+<p>차단 판정 결과(<code>CHNL_BLOCK_DECISION</code>)도 여기 기록합니다. <b>차단된 거래뿐 아니라 허용된 거래도</b> 남깁니다 — 차단되지 않은 이유를 설명할 수 있어야 감사에 대응할 수 있습니다.</p>`},
+
+info:{tag:"은행 시스템",title:"정보계 (Information System)",html:`
+<p>원장 데이터를 <b>가공·집계</b>해 통계, 분석, 감독기관 보고에 쓰는 시스템입니다.</p>
+<h5>왜 따로 두나</h5>
+<p>"지난달 차단 건수와 금액"을 계정계에서 직접 집계하면 <b>실시간 거래 처리에 부하</b>를 줍니다. 창구에서 손님이 기다리는 동안 통계 쿼리가 돌면 안 됩니다.</p>
+<p>그래서 영업시간이 끝난 뒤 일배치로 데이터를 옮겨 집계합니다.</p>
+<h5>본 프로젝트에서</h5>
+<ul>
+<li><code>AUDIT_DEATH_ACCESS</code> — 사망정보를 누가·언제·무슨 목적으로 조회했는지</li>
+<li><code>STAT_*</code> — 일별 차단·예외인출·매칭오류 집계</li>
+</ul>
+<p>집계 테이블에는 <b>개인식별정보를 담지 않습니다.</b> 건수와 금액만 보관합니다.</p>`},
+
+ext:{tag:"은행 시스템",title:"대외계 (External Link System)",html:`
+<p>외부 기관과의 <b>연계</b>를 담당합니다. 금융결제원, 한국은행, 신용정보원, 정부기관과 데이터를 주고받습니다.</p>
+<h5>본 프로젝트에서</h5>
+<p>행정안전부 사망자 정보가 한국신용정보원을 거쳐 매일 1회 들어옵니다. 이 데이터를 받아 보관하는 것이 대외계의 역할입니다.</p>
+<h5>원천 불변 원칙</h5>
+<p>외부에서 받은 데이터는 <b>가공하지 않고 그대로</b> 보관합니다. 매칭 로직에 버그가 있었을 때 원천이 남아 있어야 재처리할 수 있기 때문입니다.</p>
+<p><code>EXT_DEATH_RECORD</code>에서 적재 후 바뀌는 컬럼은 <code>match_status_cd</code> 하나뿐입니다.</p>`},
+
+/* ---------- 자료형 (백업) ---------- */
+datetime:{tag:"자료형",title:"DATETIME(3) — 날짜와 시각",html:`
+<p>날짜와 시각을 함께 담는 자료형입니다. 괄호 안의 <code>3</code>은 <b>소수점 이하 3자리</b>, 즉 밀리초까지 기록한다는 뜻입니다.</p>
+<h5>TIMESTAMP를 쓰지 않은 이유</h5>
+<ul>
+<li><b>2038년 문제</b> — TIMESTAMP는 2038년 1월까지만 저장됩니다. 만기가 먼 금융상품에는 위험합니다</li>
+<li><b>타임존 변환</b> — TIMESTAMP는 세션 타임존에 따라 값이 바뀝니다. 배치 서버와 웹 서버의 설정이 다르면 같은 행을 읽어도 다른 시각이 나옵니다</li>
+</ul>
+<p>DATETIME은 저장한 값을 그대로 돌려줍니다.</p>
+<h5>왜 밀리초까지</h5>
+<p>차단개시일시 경계 판정에서 초 단위로는 부족할 수 있고, 같은 초에 들어온 거래의 순서를 구분해야 할 때가 있습니다.</p>`},
+
+varchar:{tag:"자료형",title:"VARCHAR — 가변 길이 문자열",html:`
+<p>길이가 변하는 문자열을 담습니다. <code>VARCHAR(14)</code>는 최대 14자까지라는 뜻이고, 실제 저장 공간은 입력한 만큼만 씁니다.</p>
+<h5>계좌번호를 숫자가 아닌 문자로 둔 이유</h5>
+<ul>
+<li><b>앞자리 0이 사라집니다</b> — <code>01234567890123</code>을 숫자로 넣으면 <code>1234567890123</code>이 되고, 은행에서 이건 다른 계좌입니다</li>
+<li><b>계산할 일이 없습니다</b> — 계좌번호를 더하거나 평균 내지 않으므로 숫자형의 이점이 없습니다</li>
+<li><b>체계가 바뀔 수 있습니다</b> — 자릿수나 구분자가 늘어날 때 문자형이 유연합니다</li>
+</ul>
+<h5>CHAR와의 차이</h5>
+<p><code>CHAR(4)</code>는 항상 4자를 쓰고 모자라면 공백으로 채웁니다. 길이가 고정된 코드값에 적합합니다. VARCHAR는 길이가 들쭉날쭉한 이름·주소에 적합합니다.</p>`},
+
+char1:{tag:"자료형",title:"CHAR(1) — 한 글자 코드",html:`
+<p>정확히 한 글자를 담습니다. 본 프로젝트에서는 Y/N 여부와 입출금구분(I/O)에 썼습니다.</p>
+<h5>TINYINT(1)을 쓰지 않은 이유</h5>
+<p>MySQL의 <code>TINYINT(1)</code>은 JDBC 드라이버 설정 <code>tinyInt1isBit</code>에 따라 <b>Boolean으로 오기도 하고 Integer로 오기도</b> 합니다.</p>
+<p>드라이버 설정에 따라 Java 코드가 달라지는 건 피해야 합니다. 개발 환경에서는 되는데 운영에서 깨지는 전형적인 원인입니다.</p>
+<p><code>CHAR(1)</code>에 <code>'Y'</code>/<code>'N'</code>을 넣으면 어떤 환경에서도 <code>String</code>입니다.</p>
+<div class="note">값의 범위는 <code>CHECK (allow_yn IN ('Y','N'))</code>으로 별도 강제합니다.</div>`},
+
+charcode:{tag:"자료형",title:"CHAR(4) + 공통코드 테이블",html:`
+<p>상태나 구분을 나타내는 모든 <code>*_cd</code> 컬럼은 <code>CHAR(4)</code>이고, 실제 의미는 <code>CODE_DETAIL</code> 테이블이 갖고 있습니다.</p>
+<h5>ENUM을 쓰지 않은 이유</h5>
+<ul>
+<li>값을 하나 추가할 때마다 <code>ALTER TABLE</code>이 필요합니다. 운영 중인 대용량 테이블에서는 테이블을 잠그는 위험한 작업입니다</li>
+<li>코드명을 바꾸려면 역시 구조 변경이 필요합니다</li>
+<li>여러 테이블에서 같은 코드 체계를 쓸 때 정의가 흩어집니다</li>
+</ul>
+<h5>코드 테이블 방식의 이점</h5>
+<p>새 상태가 필요하면 <code>INSERT</code> 한 줄, 이름을 바꾸려면 한 행만 <code>UPDATE</code>하면 참조하는 모든 곳에 반영됩니다. 금융권 표준 방식입니다.</p>
+<p>본 프로젝트는 코드 그룹 <b>24개</b>, 코드값 <b>79개</b>를 정의했습니다.</p>`},
+
+hash:{tag:"자료형",title:"CHAR(64) — SHA-256 해시",html:`
+<p>주민등록번호를 <b>평문으로 저장하지 않기 위한</b> 장치입니다. SHA-256 해시의 16진수 표현이 정확히 64자이므로 <code>CHAR(64)</code>가 맞습니다.</p>
+<h5>해시란</h5>
+<p>원본을 고정 길이 값으로 바꾸는 단방향 함수입니다. 같은 입력은 항상 같은 결과를 내지만, <b>결과에서 원본을 되돌릴 수 없습니다.</b></p>
+<h5>이 프로젝트에서의 쓰임</h5>
+<p>행안부에서 온 사망자 레코드와 우리 고객을 매칭할 때, 양쪽의 주민번호를 각각 해시해서 <b>해시끼리 비교</b>합니다. 평문 없이도 동일인 판별이 됩니다.</p>
+<h5>형식도 검증한다</h5>
+<p><code>CHECK (rrn_hash REGEXP '^[0-9a-f]{64}$')</code></p>
+<p>해시가 아닌 값이 들어오는 것을 막습니다. 실수로 주민번호 평문을 넣는 사고를 방지하는 효과도 있습니다.</p>`}
+};
+
+(function(){
+  var slides = [].slice.call(document.querySelectorAll('.slide'));
+  var stage = document.getElementById('stage'), bar = document.getElementById('bar');
+  var notes = document.getElementById('notes'), idx = document.getElementById('idx');
+  var modal = document.getElementById('modal'), cur = 0;
+
+  function fit(){
+    var s = Math.min(window.innerWidth/1280, window.innerHeight/720)*0.955;
+    stage.style.transform = 'scale('+s+')';
+  }
+  function autofit(el){
+    el.style.transform=''; el.style.width=''; el.style.height='';
+    var bd = el.querySelector('.body');
+    var over = Math.max(el.scrollHeight-el.clientHeight,
+                        bd ? bd.scrollHeight-bd.clientHeight : 0);
+    if(over > 2){
+      var k = 720/(720+over+6);
+      el.style.transformOrigin='top left';
+      el.style.width = (1280/k)+'px';
+      el.style.height = (720/k)+'px';
+      el.style.transform = 'scale('+k+')';
+    }
+  }
+  window.addEventListener('resize', function(){ autofit(slides[cur]); });
+  function show(i){
+    cur = Math.max(0, Math.min(slides.length-1, i));
+    slides.forEach(function(el,j){ el.classList.toggle('on', j===cur); });
+    autofit(slides[cur]);
+    bar.style.width = ((cur+1)/slides.length*100)+'%';
+    notes.textContent = slides[cur].getAttribute('data-note') || '(노트 없음)';
+    try{ location.hash = '#'+(cur+1); }catch(e){}
+  }
+  function openTerm(key){
+    var t = TERMS[key];
+    if(!t) return;
+    document.getElementById('mtag').textContent = t.tag || '';
+    document.getElementById('mtitle').textContent = t.title;
+    document.getElementById('mbody').innerHTML = t.html;
+    document.getElementById('mbody').scrollTop = 0;
+    modal.classList.add('on');
+  }
+  function closeTerm(){ modal.classList.remove('on'); }
+
+  document.addEventListener('click', function(e){
+    var el = e.target.closest('[data-t]');
+    if(el){ e.stopPropagation(); openTerm(el.getAttribute('data-t')); return; }
+    if(e.target.id==='mclose' || e.target.id==='modal'){ closeTerm(); return; }
+    if(modal.classList.contains('on')){ e.stopPropagation(); return; }
+  }, true);
+
+  slides.forEach(function(el,i){
+    var fs = el.querySelectorAll('footer span');
+    if(fs.length) fs[fs.length-1].textContent = (i+1)+' / '+slides.length;
+    var t = el.querySelector('h1,h2');
+    var li = document.createElement('li');
+    li.textContent = (i+1)+'. '+(t? t.textContent.replace(/\s+/g,' ').replace(/ⓘ/g,'') : '슬라이드');
+    li.onclick = function(){ idx.classList.remove('on'); show(i); };
+    document.getElementById('idxList').appendChild(li);
+  });
+
+  document.addEventListener('keydown', function(e){
+    var k = e.key;
+    if(k==='Escape'){ closeTerm(); idx.classList.remove('on');
+      var ex=document.getElementById('erdx'); if(ex) ex.classList.remove('on'); return; }
+    var exo=document.getElementById('erdx');
+    if(exo && exo.classList.contains('on') && k!=='e' && k!=='E') return;
+    if(modal.classList.contains('on')) return;
+    if(k==='ArrowRight'||k==='PageDown'||k===' '||k==='Enter'){ show(cur+1); e.preventDefault(); }
+    else if(k==='ArrowLeft'||k==='PageUp'||k==='Backspace'){ show(cur-1); e.preventDefault(); }
+    else if(k==='Home'){ show(0); } else if(k==='End'){ show(slides.length-1); }
+    else if(k==='f'||k==='F'){ document.fullscreenElement ? document.exitFullscreen()
+      : document.documentElement.requestFullscreen(); }
+    else if(k==='n'||k==='N'){ notes.classList.toggle('on'); }
+    else if(k==='m'||k==='M'){ idx.classList.toggle('on'); }
+    else if(k==='e'||k==='E'){ if(window.toggleERD) window.toggleERD(); }
+  });
+  stage.addEventListener('click', function(e){
+    if(modal.classList.contains('on')) return;
+    var r = stage.getBoundingClientRect();
+    show((e.clientX-r.left)/r.width > 0.35 ? cur+1 : cur-1);
+  });
+  window.addEventListener('resize', fit);
+  fit();
+  var h = parseInt((location.hash||'').replace('#',''),10);
+  show(isNaN(h)?0:h-1);
+})();
+</script>
+<script>
+var CDESC={
+"reg_dtm":"등록일시 · 표준 공통컬럼","reg_user_id":"등록자 · 표준 공통컬럼",
+"upd_dtm":"수정일시 · 표준 공통컬럼","upd_user_id":"수정자 · 표준 공통컬럼",
+"hist_id":"이력 일련번호 · 대리키","decision_id":"판정 일련번호 · 대리키",
+"request_id":"요청 일련번호 · 대리키","response_id":"응답 일련번호 · 대리키",
+"auto_transfer_id":"약정 일련번호 · 대리키","result_id":"처리결과 일련번호 · 대리키",
+"approval_id":"승인 일련번호 · 대리키","document_id":"서류 일련번호 · 대리키",
+"payout_id":"지급 일련번호 · 대리키","exc_request_id":"신청 일련번호 · 대리키",
+"death_record_id":"원천레코드 일련번호 · 대리키","inquiry_id":"조회 일련번호 · 대리키",
+"access_log_id":"감사로그 일련번호 · 대리키",
+"valid_from_dtm":"이 상태가 유효해진 시점","valid_to_dtm":"이 상태가 끝난 시점 · 현재행은 9999-12-31"};
+function cdesc(c){
+  if(c.d) return c.d;
+  if(c.g) return "코드그룹 고정값 · 복합 FK용 생성컬럼";
+  return CDESC[c.n] || "";
+}
+var PURPOSE={
+"core_bank.cust":"거래 주체를 식별하는 출발점. 차단이 설정되는 단위이며 모든 계좌의 주인.",
+"core_bank.cust_status_hist":"언제부터 사망 상태였는지를 증명. 상태를 덮어쓰면 사라지는 시점 정보를 보존한다.",
+"core_bank.acct":"차단이 실제로 적용되는 대상이자 잔액을 보유. 거래는 모두 이 단위로 일어난다.",
+"core_bank.acct_status_hist":"계좌 상태가 언제 거래중지로 바뀌었는지를 보존.",
+"core_bank.acct_txn":"성사된 거래만 기록하는 원장. 잔액의 근거이자 감사의 1차 자료.",
+"core_bank.death_block":"이 프로젝트의 중심. 고객당 1건이며 차단개시일시를 보관한다.",
+"core_bank.death_block_hist":"설정·해제·재설정의 경위 기록. 오차단을 복구했음을 증명한다.",
+"core_bank.block_rule":"입금만 허용한다는 규칙을 코드가 아닌 데이터로 관리. 규정이 바뀌면 UPDATE 한 줄.",
+"core_bank.auto_transfer":"매월 자동으로 빠져나가는 약정. 차단 시 중단 대상이 된다.",
+"core_bank.auto_transfer_result":"매월 처리 결과. 차단으로 실패했다는 사실이 여기 남는다.",
+"core_bank.payee_registry":"예외인출 대금이 개인계좌로 나가지 못하게 하는 화이트리스트.",
+"core_bank.exc_request":"예외인출 신청 1건의 전체 상태를 대표. 나머지 예외인출 테이블이 모두 이곳을 참조한다.",
+"core_bank.exc_document":"증빙서류 N건과 검증 결과. 신청당 서류가 여러 장이라 분리했다.",
+"core_bank.exc_approval":"2단계 승인의 차수별 이력. 차수가 늘어도 구조를 바꾸지 않아도 된다.",
+"core_bank.exc_payout":"실제 지급 1건. 미등록 수취처와 이중지급을 스키마로 차단한다.",
+"ext_link.ext_death_file":"일배치 파일 단위 헤더. 같은 기준일자 파일의 이중 적재를 막는다.",
+"ext_link.ext_death_record":"행정안전부 원천 레코드. 가공하지 않고 그대로 보관해 재처리를 가능하게 한다.",
+"ext_link.ext_inquiry_log":"실시간 조회 요청과 응답. 대외 연계의 지연과 장애를 추적한다.",
+"channel.chnl_request":"채널에서 들어온 요청. 존재하지 않는 계좌번호로 온 요청도 기록된다.",
+"channel.chnl_response":"채널로 나간 응답. 요청과 분리해 응답을 못 보낸 건을 추적할 수 있게 했다.",
+"channel.chnl_block_decision":"차단·허용 판정 결과. 허용된 거래도 남겨야 차단되지 않은 이유를 설명할 수 있다.",
+"info_mart.audit_death_access":"사망정보를 누가 언제 무슨 목적으로 조회했는지. 목적 외 이용을 탐지한다.",
+"info_mart.stat_block_daily":"일별 차단 건수와 금액. 개인식별정보 없이 집계만 보관.",
+"info_mart.stat_exception_daily":"일별 예외인출 신청·승인·반려 현황.",
+"info_mart.stat_mismatch":"매칭 오류 건수. 미매칭과 다건매칭을 구분해 집계.",
+"comm_code.code_group":"코드 그룹의 정의. 고객상태·거래유형 같은 분류 자체를 관리한다.",
+"comm_code.code_detail":"코드값과 이름. 모든 _cd 컬럼이 참조하는 출처이며 값 추가는 INSERT 한 줄.",
+"comm_code.rsp_code":"응답코드 정의. 7개 컬럼이 참조하며 메시지가 이 한 곳에만 존재한다.",
+"comm_code.org_code":"금융결제원이 부여한 3자리 표준 기관코드.",
+"comm_code.biz_calendar":"영업일 판정. 자동이체 실행일 계산에 쓰인다."};
+var ERD = {"schemas":{"core_bank":{"ko":"계정계","cls":"core"},"ext_link":{"ko":"대외계","cls":"ext"},"channel":{"ko":"채널계","cls":"chnl"},"info_mart":{"ko":"정보계","cls":"info"},"comm_code":{"ko":"공통","cls":"comm"}},"tables":[{"s":"channel","t":"chnl_block_decision","ko":"차단 판정이력","cols":[{"n":"decision_id","t":"bigint","nl":false,"k":"PK"},{"n":"request_id","t":"bigint","nl":false,"k":"UK","d":"요청ID","fk":["channel","chnl_request","request_id","fk_cdec_req"]},{"n":"decision_cd","t":"char(4)","nl":false,"d":"판정결과","fk":["comm_code","code_detail","code_cd","fk_cdec_code"]},{"n":"decision_grp","t":"char(10)","nl":true,"g":1,"fk":["comm_code","code_detail","group_cd","fk_cdec_code"]},{"n":"applied_rule_id","t":"bigint","nl":true,"d":"적용규칙ID(스냅샷, FK 없음)"},{"n":"block_start_dtm","t":"datetime(3)","nl":true,"d":"판정 근거 차단개시일시"},{"n":"decision_dtm","t":"datetime(3)","nl":false,"d":"판정일시"},{"n":"txn_unique_no","t":"varchar(30)","nl":true,"d":"성사시 거래고유번호(논리참조)"},{"n":"reg_dtm","t":"datetime(3)","nl":false,"g":1},{"n":"reg_user_id","t":"varchar(20)","nl":false}]},{"s":"channel","t":"chnl_request","ko":"채널 거래요청","cols":[{"n":"request_id","t":"bigint","nl":false,"k":"PK"},{"n":"request_unique_no","t":"varchar(30)","nl":false,"k":"UK","d":"요청고유번호"},{"n":"chnl_cd","t":"char(4)","nl":false,"d":"채널","fk":["comm_code","code_detail","code_cd","fk_creq_chnl"]},{"n":"chnl_grp","t":"char(10)","nl":true,"g":1,"fk":["comm_code","code_detail","group_cd","fk_creq_chnl"]},{"n":"cust_no","t":"varchar(12)","nl":true,"d":"고객번호(논리참조)"},{"n":"acct_no","t":"varchar(14)","nl":false,"d":"계좌번호(논리참조)"},{"n":"txn_type_cd","t":"char(4)","nl":false,"d":"거래유형","fk":["comm_code","code_detail","code_cd","fk_creq_type"]},{"n":"txn_type_grp","t":"char(10)","nl":true,"g":1,"fk":["comm_code","code_detail","group_cd","fk_creq_type"]},{"n":"request_amt","t":"decimal(18,2)","nl":true,"d":"요청금액"},{"n":"request_dtm","t":"datetime(3)","nl":false,"d":"요청일시"},{"n":"reg_dtm","t":"datetime(3)","nl":false,"g":1},{"n":"reg_user_id","t":"varchar(20)","nl":false}]},{"s":"channel","t":"chnl_response","ko":"채널 거래응답","cols":[{"n":"response_id","t":"bigint","nl":false,"k":"PK"},{"n":"request_id","t":"bigint","nl":false,"k":"UK","d":"요청ID","fk":["channel","chnl_request","request_id","fk_cres_req"]},{"n":"rsp_cd","t":"char(4)","nl":false,"d":"응답코드","fk":["comm_code","rsp_code","rsp_cd","fk_cres_rsp"]},{"n":"rsp_message","t":"varchar(200)","nl":false,"d":"응답메시지"},{"n":"response_dtm","t":"datetime(3)","nl":false,"d":"응답일시"},{"n":"elapsed_ms","t":"int","nl":false,"d":"소요시간(ms)"},{"n":"reg_dtm","t":"datetime(3)","nl":false,"g":1},{"n":"reg_user_id","t":"varchar(20)","nl":false}]},{"s":"comm_code","t":"biz_calendar","ko":"영업일 달력","cols":[{"n":"base_biz_dt","t":"char(8)","nl":false,"k":"PK","d":"기준일자 YYYYMMDD"},{"n":"biz_day_yn","t":"char(1)","nl":false,"d":"영업일 여부"},{"n":"holiday_nm","t":"varchar(60)","nl":true,"d":"공휴일명"},{"n":"reg_dtm","t":"datetime(3)","nl":false,"g":1},{"n":"reg_user_id","t":"varchar(20)","nl":false},{"n":"upd_dtm","t":"datetime(3)","nl":true},{"n":"upd_user_id","t":"varchar(20)","nl":true}]},{"s":"comm_code","t":"code_detail","ko":"공통코드 상세","cols":[{"n":"group_cd","t":"char(10)","nl":false,"k":"PK","d":"코드그룹","fk":["comm_code","code_group","group_cd","fk_cdtl_group"]},{"n":"code_cd","t":"char(4)","nl":false,"k":"PK","d":"코드값"},{"n":"code_nm","t":"varchar(60)","nl":false,"d":"코드명"},{"n":"sort_seq","t":"int","nl":false,"d":"정렬순서"},{"n":"use_yn","t":"char(1)","nl":false,"d":"사용여부"},{"n":"reg_dtm","t":"datetime(3)","nl":false,"g":1},{"n":"reg_user_id","t":"varchar(20)","nl":false},{"n":"upd_dtm","t":"datetime(3)","nl":true},{"n":"upd_user_id","t":"varchar(20)","nl":true}]},{"s":"comm_code","t":"code_group","ko":"공통코드 그룹","cols":[{"n":"group_cd","t":"char(10)","nl":false,"k":"PK","d":"코드그룹"},{"n":"group_nm","t":"varchar(60)","nl":false,"d":"그룹명"},{"n":"group_desc","t":"varchar(200)","nl":true,"d":"설명"},{"n":"use_yn","t":"char(1)","nl":false,"d":"사용여부"},{"n":"reg_dtm","t":"datetime(3)","nl":false,"g":1},{"n":"reg_user_id","t":"varchar(20)","nl":false},{"n":"upd_dtm","t":"datetime(3)","nl":true},{"n":"upd_user_id","t":"varchar(20)","nl":true}]},{"s":"comm_code","t":"org_code","ko":"금융기관 코드","cols":[{"n":"org_cd","t":"char(3)","nl":false,"k":"PK","d":"금융기관코드"},{"n":"org_nm","t":"varchar(60)","nl":false,"d":"기관명"},{"n":"use_yn","t":"char(1)","nl":false,"d":"사용여부"},{"n":"reg_dtm","t":"datetime(3)","nl":false,"g":1},{"n":"reg_user_id","t":"varchar(20)","nl":false},{"n":"upd_dtm","t":"datetime(3)","nl":true},{"n":"upd_user_id","t":"varchar(20)","nl":true}]},{"s":"comm_code","t":"rsp_code","ko":"응답코드","cols":[{"n":"rsp_cd","t":"char(4)","nl":false,"k":"PK","d":"응답코드"},{"n":"rsp_message","t":"varchar(200)","nl":false,"d":"응답메시지"},{"n":"openbanking_cd","t":"char(3)","nl":true,"d":"오픈뱅킹 대응코드"},{"n":"success_yn","t":"char(1)","nl":false,"d":"정상처리 여부"},{"n":"reg_dtm","t":"datetime(3)","nl":false,"g":1},{"n":"reg_user_id","t":"varchar(20)","nl":false},{"n":"upd_dtm","t":"datetime(3)","nl":true},{"n":"upd_user_id","t":"varchar(20)","nl":true}]},{"s":"core_bank","t":"acct","ko":"계좌","cols":[{"n":"acct_no","t":"varchar(14)","nl":false,"k":"PK","d":"계좌번호"},{"n":"cust_no","t":"varchar(12)","nl":false,"d":"고객번호","fk":["core_bank","cust","cust_no","fk_acct_cust"]},{"n":"product_cd","t":"char(4)","nl":false,"d":"상품코드","fk":["comm_code","code_detail","code_cd","fk_acct_product"]},{"n":"product_grp","t":"char(10)","nl":true,"g":1,"fk":["comm_code","code_detail","group_cd","fk_acct_product"]},{"n":"balance_amt","t":"decimal(18,2)","nl":false,"d":"잔액"},{"n":"acct_status_cd","t":"char(4)","nl":false,"d":"계좌상태","fk":["comm_code","code_detail","code_cd","fk_acct_status"]},{"n":"acct_status_grp","t":"char(10)","nl":true,"g":1,"fk":["comm_code","code_detail","group_cd","fk_acct_status"]},{"n":"open_dt","t":"date","nl":false,"d":"개설일"},{"n":"close_dt","t":"date","nl":true,"d":"해지일"},{"n":"reg_dtm","t":"datetime(3)","nl":false,"g":1},{"n":"reg_user_id","t":"varchar(20)","nl":false},{"n":"upd_dtm","t":"datetime(3)","nl":true},{"n":"upd_user_id","t":"varchar(20)","nl":true}]},{"s":"core_bank","t":"acct_status_hist","ko":"계좌상태 이력","cols":[{"n":"hist_id","t":"bigint","nl":false,"k":"PK"},{"n":"acct_no","t":"varchar(14)","nl":false,"d":"계좌번호","fk":["core_bank","acct","acct_no","fk_ahist_acct"]},{"n":"before_status_cd","t":"char(4)","nl":true,"d":"변경전 상태","fk":["comm_code","code_detail","code_cd","fk_ahist_before"]},{"n":"before_status_grp","t":"char(10)","nl":true,"g":1,"fk":["comm_code","code_detail","group_cd","fk_ahist_before"]},{"n":"after_status_cd","t":"char(4)","nl":false,"d":"변경후 상태","fk":["comm_code","code_detail","code_cd","fk_ahist_after"]},{"n":"after_status_grp","t":"char(10)","nl":true,"g":1,"fk":["comm_code","code_detail","group_cd","fk_ahist_after"]},{"n":"valid_from_dtm","t":"datetime(3)","nl":false},{"n":"valid_to_dtm","t":"datetime(3)","nl":false},{"n":"reg_dtm","t":"datetime(3)","nl":false,"g":1},{"n":"reg_user_id","t":"varchar(20)","nl":false}]},{"s":"core_bank","t":"acct_txn","ko":"거래원장","cols":[{"n":"txn_id","t":"bigint","nl":false,"k":"PK","d":"거래ID"},{"n":"txn_unique_no","t":"varchar(30)","nl":false,"k":"UK","d":"거래고유번호"},{"n":"acct_no","t":"varchar(14)","nl":false,"d":"계좌번호","fk":["core_bank","acct","acct_no","fk_txn_acct"]},{"n":"txn_dtm","t":"datetime(3)","nl":false,"d":"거래일시"},{"n":"txn_type_cd","t":"char(4)","nl":false,"d":"거래유형","fk":["comm_code","code_detail","code_cd","fk_txn_type"]},{"n":"txn_type_grp","t":"char(10)","nl":true,"g":1,"fk":["comm_code","code_detail","group_cd","fk_txn_type"]},{"n":"dr_cr_cd","t":"char(1)","nl":false,"d":"I=입금 O=출금"},{"n":"txn_amt","t":"decimal(18,2)","nl":false,"d":"거래금액(항상 양수)"},{"n":"balance_after_amt","t":"decimal(18,2)","nl":false,"d":"거래후잔액"},{"n":"chnl_cd","t":"char(4)","nl":false,"d":"채널","fk":["comm_code","code_detail","code_cd","fk_txn_chnl"]},{"n":"chnl_grp","t":"char(10)","nl":true,"g":1,"fk":["comm_code","code_detail","group_cd","fk_txn_chnl"]},{"n":"terminal_id","t":"varchar(20)","nl":true,"d":"단말 식별값(전자금융거래법 제22조)"},{"n":"counter_org_cd","t":"char(3)","nl":true,"d":"상대 기관코드","fk":["comm_code","org_code","org_cd","fk_txn_org"]},{"n":"counter_acct_no","t":"varchar(14)","nl":true,"d":"상대 계좌번호"},{"n":"rsp_cd","t":"char(4)","nl":false,"d":"응답코드","fk":["comm_code","rsp_code","rsp_cd","fk_txn_rsp"]},{"n":"memo","t":"varchar(500)","nl":true,"d":"적요"},{"n":"reg_dtm","t":"datetime(3)","nl":false,"g":1},{"n":"reg_user_id","t":"varchar(20)","nl":false}]},{"s":"core_bank","t":"auto_transfer","ko":"자동이체 약정","cols":[{"n":"auto_transfer_id","t":"bigint","nl":false,"k":"PK"},{"n":"acct_no","t":"varchar(14)","nl":false,"d":"출금계좌","fk":["core_bank","acct","acct_no","fk_at_acct"]},{"n":"payee_org_cd","t":"char(3)","nl":false,"d":"수납기관","fk":["comm_code","org_code","org_cd","fk_at_org"]},{"n":"payee_acct_no","t":"varchar(14)","nl":false,"d":"수납계좌"},{"n":"transfer_day","t":"int","nl":false,"d":"이체일(1~31)"},{"n":"transfer_amt","t":"decimal(18,2)","nl":false,"d":"이체금액"},{"n":"status_cd","t":"char(4)","nl":false,"d":"약정상태","fk":["comm_code","code_detail","code_cd","fk_at_status"]},{"n":"status_grp","t":"char(10)","nl":true,"g":1,"fk":["comm_code","code_detail","group_cd","fk_at_status"]},{"n":"reg_dtm","t":"datetime(3)","nl":false,"g":1},{"n":"reg_user_id","t":"varchar(20)","nl":false},{"n":"upd_dtm","t":"datetime(3)","nl":true},{"n":"upd_user_id","t":"varchar(20)","nl":true}]},{"s":"core_bank","t":"auto_transfer_result","ko":"자동이체 처리결과","cols":[{"n":"result_id","t":"bigint","nl":false,"k":"PK"},{"n":"auto_transfer_id","t":"bigint","nl":false,"d":"약정ID","fk":["core_bank","auto_transfer","auto_transfer_id","fk_atres_at"]},{"n":"process_dt","t":"date","nl":false,"d":"처리일자"},{"n":"result_cd","t":"char(4)","nl":false,"d":"처리결과","fk":["comm_code","code_detail","code_cd","fk_atres_code"]},{"n":"result_grp","t":"char(10)","nl":true,"g":1,"fk":["comm_code","code_detail","group_cd","fk_atres_code"]},{"n":"fail_rsp_cd","t":"char(4)","nl":true,"d":"실패 응답코드","fk":["comm_code","rsp_code","rsp_cd","fk_atres_rsp"]},{"n":"txn_unique_no","t":"varchar(30)","nl":true,"d":"성공시 생성된 거래고유번호"},{"n":"reg_dtm","t":"datetime(3)","nl":false,"g":1},{"n":"reg_user_id","t":"varchar(20)","nl":false}]},{"s":"core_bank","t":"block_rule","ko":"차단규칙","cols":[{"n":"rule_id","t":"bigint","nl":false,"k":"PK","d":"규칙ID"},{"n":"txn_type_cd","t":"char(4)","nl":false,"d":"거래유형","fk":["comm_code","code_detail","code_cd","fk_rule_txntype"]},{"n":"txn_type_grp","t":"char(10)","nl":true,"g":1,"fk":["comm_code","code_detail","group_cd","fk_rule_txntype"]},{"n":"dr_cr_cd","t":"char(1)","nl":false,"d":"I=입금 O=출금"},{"n":"allow_yn","t":"char(1)","nl":false,"d":"차단중 허용여부"},{"n":"exception_possible_yn","t":"char(1)","nl":false,"d":"예외인출 가능여부"},{"n":"reject_rsp_cd","t":"char(4)","nl":true,"d":"거절 응답코드","fk":["comm_code","rsp_code","rsp_cd","fk_rule_rsp"]},{"n":"apply_from_dt","t":"date","nl":false,"d":"적용시작일"},{"n":"apply_to_dt","t":"date","nl":false,"d":"적용종료일"},{"n":"reg_dtm","t":"datetime(3)","nl":false,"g":1},{"n":"reg_user_id","t":"varchar(20)","nl":false}]},{"s":"core_bank","t":"cust","ko":"고객","cols":[{"n":"cust_no","t":"varchar(12)","nl":false,"k":"PK","d":"고객번호"},{"n":"cust_nm","t":"varchar(60)","nl":false,"d":"성명"},{"n":"rrn_hash","t":"char(64)","nl":false,"k":"UK","d":"실명확인번호 해시(검색용)"},{"n":"rrn_enc","t":"varbinary(128)","nl":true,"d":"실명확인번호 암호문(저장용, 개인정보보호법 제24조의2)"},{"n":"birth_dt","t":"date","nl":false,"d":"생년월일"},{"n":"cust_status_cd","t":"char(4)","nl":false,"d":"고객상태","fk":["comm_code","code_detail","code_cd","fk_cust_status"]},{"n":"cust_status_grp","t":"char(10)","nl":true,"g":1,"fk":["comm_code","code_detail","group_cd","fk_cust_status"]},{"n":"open_dt","t":"date","nl":false,"d":"최초거래일"},{"n":"close_dt","t":"date","nl":true,"d":"상거래관계 종료일(신용정보법 제20조의2 기산점)"},{"n":"reg_dtm","t":"datetime(3)","nl":false,"g":1},{"n":"reg_user_id","t":"varchar(20)","nl":false},{"n":"upd_dtm","t":"datetime(3)","nl":true},{"n":"upd_user_id","t":"varchar(20)","nl":true}]},{"s":"core_bank","t":"cust_status_hist","ko":"고객상태 이력","cols":[{"n":"hist_id","t":"bigint","nl":false,"k":"PK","d":"이력ID"},{"n":"cust_no","t":"varchar(12)","nl":false,"d":"고객번호","fk":["core_bank","cust","cust_no","fk_chist_cust"]},{"n":"before_status_cd","t":"char(4)","nl":true,"d":"변경전 상태","fk":["comm_code","code_detail","code_cd","fk_chist_before"]},{"n":"before_status_grp","t":"char(10)","nl":true,"g":1,"fk":["comm_code","code_detail","group_cd","fk_chist_before"]},{"n":"after_status_cd","t":"char(4)","nl":false,"d":"변경후 상태","fk":["comm_code","code_detail","code_cd","fk_chist_after"]},{"n":"after_status_grp","t":"char(10)","nl":true,"g":1,"fk":["comm_code","code_detail","group_cd","fk_chist_after"]},{"n":"change_reason_cd","t":"char(4)","nl":false,"d":"변경사유","fk":["comm_code","code_detail","code_cd","fk_chist_reason"]},{"n":"change_reason_grp","t":"char(10)","nl":true,"g":1,"fk":["comm_code","code_detail","group_cd","fk_chist_reason"]},{"n":"valid_from_dtm","t":"datetime(3)","nl":false,"d":"유효시작"},{"n":"valid_to_dtm","t":"datetime(3)","nl":false,"d":"유효종료"},{"n":"reg_dtm","t":"datetime(3)","nl":false,"g":1},{"n":"reg_user_id","t":"varchar(20)","nl":false}]},{"s":"core_bank","t":"death_block","ko":"사망차단","cols":[{"n":"block_id","t":"bigint","nl":false,"k":"PK","d":"차단ID"},{"n":"cust_no","t":"varchar(12)","nl":false,"k":"UK","d":"고객번호","fk":["core_bank","cust","cust_no","fk_block_cust"]},{"n":"source_record_id","t":"bigint","nl":false,"d":"근거 원천레코드ID(논리참조)"},{"n":"death_dt","t":"date","nl":false,"d":"사망일자"},{"n":"death_report_dt","t":"date","nl":false,"d":"사망신고일자"},{"n":"block_start_dtm","t":"datetime(3)","nl":false,"d":"차단개시일시 = 신고일+1일 00:00"},{"n":"block_status_cd","t":"char(4)","nl":false,"d":"차단상태","fk":["comm_code","code_detail","code_cd","fk_block_status"]},{"n":"block_status_grp","t":"char(10)","nl":true,"g":1,"fk":["comm_code","code_detail","group_cd","fk_block_status"]},{"n":"release_dtm","t":"datetime(3)","nl":true,"d":"해제일시"},{"n":"release_reason_cd","t":"char(4)","nl":true,"d":"해제사유","fk":["comm_code","code_detail","code_cd","fk_block_release"]},{"n":"release_reason_grp","t":"char(10)","nl":true,"g":1,"fk":["comm_code","code_detail","group_cd","fk_block_release"]},{"n":"reg_dtm","t":"datetime(3)","nl":false,"g":1},{"n":"reg_user_id","t":"varchar(20)","nl":false},{"n":"upd_dtm","t":"datetime(3)","nl":true},{"n":"upd_user_id","t":"varchar(20)","nl":true}]},{"s":"core_bank","t":"death_block_hist","ko":"사망차단 이력","cols":[{"n":"hist_id","t":"bigint","nl":false,"k":"PK"},{"n":"block_id","t":"bigint","nl":false,"d":"차단ID","fk":["core_bank","death_block","block_id","fk_bhist_block"]},{"n":"action_cd","t":"char(4)","nl":false,"d":"조치구분","fk":["comm_code","code_detail","code_cd","fk_bhist_action"]},{"n":"action_grp","t":"char(10)","nl":true,"g":1,"fk":["comm_code","code_detail","group_cd","fk_bhist_action"]},{"n":"reason_cd","t":"char(4)","nl":true,"d":"사유","fk":["comm_code","code_detail","code_cd","fk_bhist_reason"]},{"n":"reason_grp","t":"char(10)","nl":true,"g":1,"fk":["comm_code","code_detail","group_cd","fk_bhist_reason"]},{"n":"action_dtm","t":"datetime(3)","nl":false,"d":"조치일시"},{"n":"actor_id","t":"varchar(20)","nl":false,"d":"조치자"},{"n":"reg_dtm","t":"datetime(3)","nl":false,"g":1},{"n":"reg_user_id","t":"varchar(20)","nl":false}]},{"s":"core_bank","t":"exc_approval","ko":"예외인출 승인","cols":[{"n":"approval_id","t":"bigint","nl":false,"k":"PK"},{"n":"exc_request_id","t":"bigint","nl":false,"d":"신청ID","fk":["core_bank","exc_request","exc_request_id","fk_exapv_req"]},{"n":"approval_seq","t":"int","nl":false,"d":"승인차수"},{"n":"approver_id","t":"varchar(20)","nl":false,"d":"승인자"},{"n":"approval_dtm","t":"datetime(3)","nl":false,"d":"승인일시"},{"n":"approval_result_cd","t":"char(4)","nl":false,"d":"승인결과","fk":["comm_code","code_detail","code_cd","fk_exapv_result"]},{"n":"approval_grp","t":"char(10)","nl":true,"g":1,"fk":["comm_code","code_detail","group_cd","fk_exapv_result"]},{"n":"opinion_desc","t":"varchar(500)","nl":true,"d":"의견"},{"n":"reg_dtm","t":"datetime(3)","nl":false,"g":1},{"n":"reg_user_id","t":"varchar(20)","nl":false}]},{"s":"core_bank","t":"exc_document","ko":"예외인출 증빙서류","cols":[{"n":"document_id","t":"bigint","nl":false,"k":"PK"},{"n":"exc_request_id","t":"bigint","nl":false,"d":"신청ID","fk":["core_bank","exc_request","exc_request_id","fk_exdoc_req"]},{"n":"doc_type_cd","t":"char(4)","nl":false,"d":"서류구분","fk":["comm_code","code_detail","code_cd","fk_exdoc_type"]},{"n":"doc_type_grp","t":"char(10)","nl":true,"g":1,"fk":["comm_code","code_detail","group_cd","fk_exdoc_type"]},{"n":"receive_dtm","t":"datetime(3)","nl":false,"d":"접수일시"},{"n":"verify_result_cd","t":"char(4)","nl":false,"d":"검증결과","fk":["comm_code","code_detail","code_cd","fk_exdoc_verify"]},{"n":"verify_grp","t":"char(10)","nl":true,"g":1,"fk":["comm_code","code_detail","group_cd","fk_exdoc_verify"]},{"n":"file_ref","t":"varchar(200)","nl":true,"d":"파일 경로"},{"n":"reg_dtm","t":"datetime(3)","nl":false,"g":1},{"n":"reg_user_id","t":"varchar(20)","nl":false}]},{"s":"core_bank","t":"exc_payout","ko":"예외인출 지급","cols":[{"n":"payout_id","t":"bigint","nl":false,"k":"PK"},{"n":"exc_request_id","t":"bigint","nl":false,"k":"UK","d":"신청ID","fk":["core_bank","exc_request","exc_request_id","fk_expay_req"]},{"n":"payee_id","t":"bigint","nl":false,"d":"실제 수취처","fk":["core_bank","payee_registry","payee_id","fk_expay_payee"]},{"n":"payout_amt","t":"decimal(18,2)","nl":false,"d":"지급금액"},{"n":"txn_unique_no","t":"varchar(30)","nl":false,"k":"UK","d":"생성된 거래고유번호","fk":["core_bank","acct_txn","txn_unique_no","fk_expay_txn"]},{"n":"payout_dtm","t":"datetime(3)","nl":false,"d":"실행일시"},{"n":"rsp_cd","t":"char(4)","nl":false,"d":"처리결과","fk":["comm_code","rsp_code","rsp_cd","fk_expay_rsp"]},{"n":"reg_dtm","t":"datetime(3)","nl":false,"g":1},{"n":"reg_user_id","t":"varchar(20)","nl":false}]},{"s":"core_bank","t":"exc_request","ko":"예외인출 신청","cols":[{"n":"exc_request_id","t":"bigint","nl":false,"k":"PK"},{"n":"cust_no","t":"varchar(12)","nl":false,"d":"사망 고객","fk":["core_bank","cust","cust_no","fk_exreq_cust"]},{"n":"acct_no","t":"varchar(14)","nl":false,"d":"출금계좌","fk":["core_bank","acct","acct_no","fk_exreq_acct"]},{"n":"payee_id","t":"bigint","nl":false,"d":"지정 수취처","fk":["core_bank","payee_registry","payee_id","fk_exreq_payee"]},{"n":"applicant_nm","t":"varchar(60)","nl":false,"d":"신청인"},{"n":"applicant_rel_cd","t":"char(4)","nl":false,"d":"신청인 관계","fk":["comm_code","code_detail","code_cd","fk_exreq_rel"]},{"n":"applicant_rel_grp","t":"char(10)","nl":true,"g":1,"fk":["comm_code","code_detail","group_cd","fk_exreq_rel"]},{"n":"exc_reason_cd","t":"char(4)","nl":false,"d":"신청사유","fk":["comm_code","code_detail","code_cd","fk_exreq_reason"]},{"n":"exc_reason_grp","t":"char(10)","nl":true,"g":1,"fk":["comm_code","code_detail","group_cd","fk_exreq_reason"]},{"n":"request_amt","t":"decimal(18,2)","nl":false,"d":"신청금액"},{"n":"exc_status_cd","t":"char(4)","nl":false,"d":"처리상태","fk":["comm_code","code_detail","code_cd","fk_exreq_status"]},{"n":"exc_status_grp","t":"char(10)","nl":true,"g":1,"fk":["comm_code","code_detail","group_cd","fk_exreq_status"]},{"n":"request_dtm","t":"datetime(3)","nl":false,"d":"신청일시"},{"n":"reject_reason_desc","t":"varchar(500)","nl":true,"d":"반려사유"},{"n":"reg_dtm","t":"datetime(3)","nl":false,"g":1},{"n":"reg_user_id","t":"varchar(20)","nl":false},{"n":"upd_dtm","t":"datetime(3)","nl":true},{"n":"upd_user_id","t":"varchar(20)","nl":true}]},{"s":"core_bank","t":"payee_registry","ko":"지정 수취처","cols":[{"n":"payee_id","t":"bigint","nl":false,"k":"PK","d":"수취처ID"},{"n":"payee_type_cd","t":"char(4)","nl":false,"d":"수취처구분","fk":["comm_code","code_detail","code_cd","fk_payee_type"]},{"n":"payee_type_grp","t":"char(10)","nl":true,"g":1,"fk":["comm_code","code_detail","group_cd","fk_payee_type"]},{"n":"payee_nm","t":"varchar(60)","nl":false,"d":"수취처명"},{"n":"biz_reg_no","t":"varchar(12)","nl":false,"k":"UK","d":"사업자등록번호"},{"n":"org_cd","t":"char(3)","nl":false,"d":"은행코드","fk":["comm_code","org_code","org_cd","fk_payee_org"]},{"n":"acct_no","t":"varchar(14)","nl":false,"d":"수취 계좌번호"},{"n":"status_cd","t":"char(4)","nl":false,"d":"등록상태","fk":["comm_code","code_detail","code_cd","fk_payee_status"]},{"n":"status_grp","t":"char(10)","nl":true,"g":1,"fk":["comm_code","code_detail","group_cd","fk_payee_status"]},{"n":"reg_dt","t":"date","nl":false,"d":"등록일"},{"n":"reg_dtm","t":"datetime(3)","nl":false,"g":1},{"n":"reg_user_id","t":"varchar(20)","nl":false},{"n":"upd_dtm","t":"datetime(3)","nl":true},{"n":"upd_user_id","t":"varchar(20)","nl":true}]},{"s":"ext_link","t":"ext_death_file","ko":"사망자정보 수신파일","cols":[{"n":"death_file_id","t":"bigint","nl":false,"k":"PK","d":"수신파일ID"},{"n":"base_biz_dt","t":"char(8)","nl":false,"k":"UK","d":"기준일자 YYYYMMDD"},{"n":"total_cnt","t":"int","nl":false,"d":"총 건수"},{"n":"receive_dtm","t":"datetime(3)","nl":false,"d":"수신일시"},{"n":"process_status_cd","t":"char(4)","nl":false,"d":"처리상태","fk":["comm_code","code_detail","code_cd","fk_efile_status"]},{"n":"process_grp","t":"char(10)","nl":true,"g":1,"fk":["comm_code","code_detail","group_cd","fk_efile_status"]},{"n":"error_desc","t":"varchar(500)","nl":true,"d":"오류내용"},{"n":"reg_dtm","t":"datetime(3)","nl":false,"g":1},{"n":"reg_user_id","t":"varchar(20)","nl":false},{"n":"upd_dtm","t":"datetime(3)","nl":true},{"n":"upd_user_id","t":"varchar(20)","nl":true}]},{"s":"ext_link","t":"ext_death_record","ko":"사망자 원천레코드","cols":[{"n":"death_record_id","t":"bigint","nl":false,"k":"PK"},{"n":"death_file_id","t":"bigint","nl":false,"d":"수신파일ID","fk":["ext_link","ext_death_file","death_file_id","fk_erec_file"]},{"n":"record_seq","t":"int","nl":false,"d":"파일내 순번"},{"n":"cust_nm","t":"varchar(60)","nl":false,"d":"성명(원천)"},{"n":"rrn_hash","t":"char(64)","nl":false,"d":"실명확인번호 해시"},{"n":"death_dt","t":"date","nl":false,"d":"사망일자"},{"n":"death_report_dt","t":"date","nl":false,"d":"사망신고일자"},{"n":"report_org_nm","t":"varchar(60)","nl":true,"d":"신고 접수기관"},{"n":"match_status_cd","t":"char(4)","nl":false,"d":"매칭상태","fk":["comm_code","code_detail","code_cd","fk_erec_match"]},{"n":"match_grp","t":"char(10)","nl":true,"g":1,"fk":["comm_code","code_detail","group_cd","fk_erec_match"]},{"n":"matched_cust_no","t":"varchar(12)","nl":true,"d":"매칭 고객번호(논리참조)"},{"n":"error_desc","t":"varchar(500)","nl":true,"d":"오류내용"},{"n":"reg_dtm","t":"datetime(3)","nl":false,"g":1},{"n":"reg_user_id","t":"varchar(20)","nl":false},{"n":"upd_dtm","t":"datetime(3)","nl":true},{"n":"upd_user_id","t":"varchar(20)","nl":true}]},{"s":"ext_link","t":"ext_inquiry_log","ko":"실시간 조회로그","cols":[{"n":"inquiry_id","t":"bigint","nl":false,"k":"PK"},{"n":"target_cust_no","t":"varchar(12)","nl":false,"d":"조회대상 고객번호(논리참조)"},{"n":"request_dtm","t":"datetime(3)","nl":false,"d":"요청일시"},{"n":"response_cd","t":"char(4)","nl":false,"d":"응답코드","fk":["comm_code","rsp_code","rsp_cd","fk_einq_rsp"]},{"n":"death_found_yn","t":"char(1)","nl":false,"d":"사망정보 존재여부"},{"n":"elapsed_ms","t":"int","nl":false,"d":"소요시간(ms)"},{"n":"reg_dtm","t":"datetime(3)","nl":false,"g":1},{"n":"reg_user_id","t":"varchar(20)","nl":false}]},{"s":"info_mart","t":"audit_death_access","ko":"사망정보 접근 감사로그","cols":[{"n":"access_log_id","t":"bigint","nl":false,"k":"PK"},{"n":"access_dtm","t":"datetime(3)","nl":false,"d":"조회일시"},{"n":"actor_id","t":"varchar(20)","nl":false,"d":"조회주체"},{"n":"actor_type_cd","t":"char(4)","nl":false,"d":"주체구분","fk":["comm_code","code_detail","code_cd","fk_audit_actor"]},{"n":"actor_grp","t":"char(10)","nl":true,"g":1,"fk":["comm_code","code_detail","group_cd","fk_audit_actor"]},{"n":"target_cust_no","t":"varchar(12)","nl":false,"d":"조회대상(논리참조)"},{"n":"purpose_cd","t":"char(4)","nl":false,"d":"조회목적","fk":["comm_code","code_detail","code_cd","fk_audit_purpose"]},{"n":"purpose_grp","t":"char(10)","nl":true,"g":1,"fk":["comm_code","code_detail","group_cd","fk_audit_purpose"]},{"n":"chnl_cd","t":"char(4)","nl":false,"d":"접근경로","fk":["comm_code","code_detail","code_cd","fk_audit_chnl"]},{"n":"chnl_grp","t":"char(10)","nl":true,"g":1,"fk":["comm_code","code_detail","group_cd","fk_audit_chnl"]},{"n":"result_cd","t":"char(4)","nl":false,"d":"처리결과","fk":["comm_code","rsp_code","rsp_cd","fk_audit_result"]},{"n":"reg_dtm","t":"datetime(3)","nl":false,"g":1},{"n":"reg_user_id","t":"varchar(20)","nl":false}]},{"s":"info_mart","t":"stat_block_daily","ko":"일별 차단집계","cols":[{"n":"base_biz_dt","t":"char(8)","nl":false,"k":"PK","d":"기준일자","fk":["comm_code","biz_calendar","base_biz_dt","fk_stblk_cal"]},{"n":"chnl_cd","t":"char(4)","nl":false,"k":"PK","d":"채널","fk":["comm_code","code_detail","code_cd","fk_stblk_chnl"]},{"n":"chnl_grp","t":"char(10)","nl":true,"g":1,"fk":["comm_code","code_detail","group_cd","fk_stblk_chnl"]},{"n":"block_txn_cnt","t":"int","nl":false,"d":"차단 거래건수"},{"n":"block_txn_amt","t":"decimal(18,2)","nl":false,"d":"차단 거래금액"},{"n":"new_block_cust_cnt","t":"int","nl":false,"d":"신규 차단 고객수"},{"n":"reg_dtm","t":"datetime(3)","nl":false,"g":1},{"n":"reg_user_id","t":"varchar(20)","nl":false}]},{"s":"info_mart","t":"stat_exception_daily","ko":"일별 예외인출 집계","cols":[{"n":"base_biz_dt","t":"char(8)","nl":false,"k":"PK","d":"기준일자","fk":["comm_code","biz_calendar","base_biz_dt","fk_stexc_cal"]},{"n":"request_cnt","t":"int","nl":false,"d":"신청건수"},{"n":"approve_cnt","t":"int","nl":false,"d":"승인건수"},{"n":"reject_cnt","t":"int","nl":false,"d":"반려건수"},{"n":"payout_amt","t":"decimal(18,2)","nl":false,"d":"지급금액"},{"n":"reg_dtm","t":"datetime(3)","nl":false,"g":1},{"n":"reg_user_id","t":"varchar(20)","nl":false}]},{"s":"info_mart","t":"stat_mismatch","ko":"매칭오류 집계","cols":[{"n":"base_biz_dt","t":"char(8)","nl":false,"k":"PK","d":"기준일자","fk":["comm_code","biz_calendar","base_biz_dt","fk_stmis_cal"]},{"n":"unmatched_cnt","t":"int","nl":false,"d":"미매칭 건수"},{"n":"multi_match_cnt","t":"int","nl":false,"d":"다건매칭 건수"},{"n":"reg_dtm","t":"datetime(3)","nl":false,"g":1},{"n":"reg_user_id","t":"varchar(20)","nl":false}]}]};
+
+(function(){
+  var grid=document.getElementById('erdgrid'), canvas=document.getElementById('erdcanvas');
+  var side=document.getElementById('erdside');
+  var box=document.getElementById('erdx'), q=document.getElementById('erdq');
+  var genChk=document.getElementById('erdgen');
+  var filter='all', sel=null, showGen=false;
+  var byKey={}; ERD.tables.forEach(function(t){ byKey[t.s+'.'+t.t]=t; });
+  var children={};
+  ERD.tables.forEach(function(t){
+    t.cols.forEach(function(c){
+      if(!c.fk) return;
+      var pk=c.fk[0]+'.'+c.fk[1];
+      (children[pk]=children[pk]||[]).push({s:t.s,t:t.t,ko:t.ko,col:c.n,pcol:c.fk[2],cn:c.fk[3]});
+    });
+  });
+  function layout(){
+    var cards=[].slice.call(canvas.children);
+    if(!cards.length){ canvas.style.height='0px'; return; }
+    var gap=14, W=grid.clientWidth-32;
+    if(W<100) return;
+    var cols=Math.max(1, Math.floor((W+gap)/(330+gap)));
+    var colW=Math.floor((W-gap*(cols-1))/cols);
+    var tops=[]; for(var i=0;i<cols;i++) tops.push(0);
+    cards.forEach(function(c){ c.style.width=colW+'px'; });
+    cards.forEach(function(c){
+      var m=0; for(var i=1;i<cols;i++) if(tops[i]<tops[m]) m=i;
+      c.style.left=(m*(colW+gap))+'px';
+      c.style.top=tops[m]+'px';
+      tops[m]+=c.offsetHeight+gap;
+    });
+    var mx=0; tops.forEach(function(t){ if(t>mx) mx=t; });
+    canvas.style.height=mx+'px';
+  }
+  function render(){
+    var kw=(q.value||'').trim().toLowerCase();
+    canvas.innerHTML='';
+    ERD.tables.forEach(function(t){
+      if(filter!=='all' && t.s!==filter) return;
+      var hit = !kw || (t.t+' '+t.ko).toLowerCase().indexOf(kw)>=0
+             || t.cols.some(function(c){ return c.n.toLowerCase().indexOf(kw)>=0; });
+      if(!hit) return;
+      var key=t.s+'.'+t.t;
+      var d=document.createElement('div');
+      d.className='tcard'+(sel===key?' sel':'');
+      var cls=ERD.schemas[t.s].cls;
+      var h='<div class="thead" data-k="'+key+'"><div class="ti"><b>'+t.t+'</b>'
+          +'<span>'+(t.ko||'')+' · '+t.cols.length+'컬럼</span></div>'
+          +'<span class="sc sc-'+cls+'">'+ERD.schemas[t.s].ko+'</span></div>';
+      t.cols.forEach(function(c){
+        if(c.g && !showGen) return;
+        var m=c.k||(c.fk?'FK':'');
+        if(c.k&&c.fk) m=c.k+' FK';
+        var cl='crow'+(c.fk?' isfk':'')+(c.g?' gen':'')+(c.nl?' nul':'');
+        h+='<div class="'+cl+'"'+(c.fk?' data-go="'+c.fk[0]+'.'+c.fk[1]+'"':'')+' title="'+c.t+'">'
+          +'<span class="m">'+m+'</span><span class="nm">'+c.n
+          +((function(x){return x?'<i>'+x+'</i>':'';})(cdesc(c)))+'</span>'
+          +(c.fk?'<span class="ar">→ '+c.fk[1]+'</span>':'<span class="ty">'+c.t+'</span>')+'</div>';
+      });
+      d.innerHTML=h; canvas.appendChild(d);
+    });
+    layout();
+  }
+  window.addEventListener('resize', function(){ if(box.classList.contains('on')) layout(); });
+  function showSide(key){
+    sel=key; var t=byKey[key]; if(!t) return;
+    var parents=[];
+    t.cols.forEach(function(c){ if(c.fk) parents.push({col:c.n,ps:c.fk[0],pt:c.fk[1],pc:c.fk[2],cn:c.fk[3]}); });
+    var kids=children[key]||[];
+    var h='<div class="tt">'+t.t+'</div><div class="tk">'+(t.ko||'')+' · '+ERD.schemas[t.s].ko
+        +' · '+t.cols.length+'컬럼</div>';
+    if(PURPOSE[key]) h+='<div class="why">'+PURPOSE[key]+'</div>';
+    h+='<h6>이 테이블이 참조하는 곳 — 부모 '+parents.length+'</h6>';
+    h+= parents.length? parents.map(function(p){
+        return '<div class="rel" data-k="'+p.ps+'.'+p.pt+'"><b>'+p.col+' → '+p.pt+'.'+p.pc+'</b>'
+          +'<span>'+(byKey[p.ps+'.'+p.pt]?byKey[p.ps+'.'+p.pt].ko:'')+' · '+ERD.schemas[p.ps].ko+'</span>'
+          +'<span class="cn">'+p.cn+'</span></div>'; }).join('')
+      : '<div style="font-size:12.5px;color:var(--mute)">없음. 다른 테이블에 의존하지 않는 독립 테이블입니다.</div>';
+    h+='<h6>이 테이블을 참조하는 곳 — 자식 '+kids.length+'</h6>';
+    h+= kids.length? kids.map(function(k){
+        return '<div class="rel" data-k="'+k.s+'.'+k.t+'"><b>'+k.t+'.'+k.col+'</b>'
+          +'<span>'+(k.ko||'')+' · '+ERD.schemas[k.s].ko+'</span>'
+          +'<span class="cn">'+k.cn+'</span></div>'; }).join('')
+      : '<div style="font-size:12.5px;color:var(--mute)">없음.</div>';
+    side.innerHTML=h; render();
+  }
+  canvas.addEventListener('click',function(e){
+    var go=e.target.closest('[data-go]');
+    if(go){ var k=go.getAttribute('data-go'); filter='all';
+      document.querySelectorAll('#erdbar .sbtn').forEach(function(b){ b.classList.toggle('on',b.getAttribute('data-sc')==='all'); });
+      q.value=''; showSide(k);
+      var el=canvas.querySelector('.thead[data-k="'+k+'"]');
+      if(el) el.parentNode.scrollIntoView({block:'center',behavior:'smooth'});
+      return; }
+    var th=e.target.closest('.thead'); if(th) showSide(th.getAttribute('data-k'));
+  });
+  side.addEventListener('click',function(e){
+    var r=e.target.closest('[data-k]'); if(!r) return;
+    var k=r.getAttribute('data-k'); filter='all';
+    document.querySelectorAll('#erdbar .sbtn').forEach(function(b){ b.classList.toggle('on',b.getAttribute('data-sc')==='all'); });
+    showSide(k);
+    var el=canvas.querySelector('.thead[data-k="'+k+'"]');
+    if(el) el.parentNode.scrollIntoView({block:'center',behavior:'smooth'});
+  });
+  document.getElementById('erdbar').addEventListener('click',function(e){
+    var b=e.target.closest('.sbtn'); if(!b) return;
+    filter=b.getAttribute('data-sc');
+    document.querySelectorAll('#erdbar .sbtn').forEach(function(x){ x.classList.remove('on'); });
+    b.classList.add('on'); render();
+  });
+  q.addEventListener('input',render);
+  genChk.addEventListener('change',function(){ showGen=genChk.checked; render(); });
+  document.getElementById('erdfold').onclick=function(){
+    box.classList.toggle('compact');
+    this.textContent = box.classList.contains('compact')?'컬럼 펼치기':'컬럼 접기';
+    this.classList.toggle('on', box.classList.contains('compact'));
+    layout();
+  };
+  document.getElementById('erdclose').onclick=function(){
+    box.classList.remove('on'); var hp=document.getElementById('help'); if(hp) hp.style.display='';
+  };
+  window.toggleERD=function(){
+    box.classList.toggle('on');
+    var hp=document.getElementById('help');
+    if(hp) hp.style.display = box.classList.contains('on') ? 'none' : '';
+    if(box.classList.contains('on')){ render(); setTimeout(layout, 30); }
+  };
+  document.addEventListener('click',function(e){
+    if(e.target.closest('#erdLaunch')){ e.stopPropagation(); window.toggleERD(); }
+  },true);
+  render();
+})();
+
+</script>
+</body>
+</html>

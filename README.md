@@ -1,7 +1,7 @@
 # 사망자 명의 금융거래 신속차단 시스템 — 데이터베이스 설계
 
 **[📊 발표 자료 보기](https://Doo-Lee01.github.io/deceased-account-block-db/presentation.html)**     
-**[✏️ 노션 페이지 보기](https://app.notion.com/p/HOME-3dd49d7e6ffa805db933ff0284e0e2db?source=copy_link)**
+**[✏️ 노션 페이지 보기](https://rhinestone-crafter-09e.notion.site/HOME-3dd49d7e6ffa805db933ff0284e0e2db?source=copy_link)**
 
 금융위원회가 2026년 9월 11일부터 시행한 「사망자 명의 금융거래 신속차단 시스템」을 은행 관점의 데이터 모델로 구현한 프로젝트입니다.
 

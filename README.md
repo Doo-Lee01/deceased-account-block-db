@@ -592,6 +592,7 @@ mysql -u root -p --force < constraint_tests.sql
 ├─ seed_data.sql              테스트 데이터셋 — 고객 5명 시나리오
 ├─ validation_queries.sql     업무 검증 쿼리 14종
 ├─ constraint_tests.sql       제약조건 위반 테스트 12종 (--force 필요)
+├─ concurrency/               락 · 데드락 시연 5종 (A · B · OBS 터미널)
 └─ docs/
     ├─ erd-overview.png       전체 ERD 이미지
     ├─ conceptual-erd.drawio  개념 ERD
@@ -637,10 +638,16 @@ mysql -u root -p --force < constraint_tests.sql
 
 해시 기반 매칭은 동명이인을 구분하지만, 원천에 주민번호가 없으면 성명·생년월일로 다건매칭이 발생합니다. 잘못 차단하면 생존 고객의 금융거래가 막히므로 자동 차단하지 않고 `match_status_cd = '40'`으로 분리해 수작업 확인 대상으로 둡니다.
 
+### 동시성
+
+스키마 설계 범위라 트랜잭션 제어는 구현하지 않았습니다. 다만 동시 거래에서 생기는 문제를 재현하고 해결 순서를 검증해 [`concurrency/`](concurrency/)에 정리했습니다.
+
+`acct_txn.acct_no`의 FK는 원장 기록 시 계좌 행에 공유락을 겁니다. 그래서 "원장 기록 → 잔액 변경" 순서로 두 거래가 같은 계좌를 처리하면 데드락이 납니다. 계좌를 `SELECT … FOR UPDATE`로 먼저 잠그면 해소되고, 이때도 일반 조회는 기다리지 않습니다. 이 해결은 트랜잭션 작성 방식의 문제라 `schema.sql`은 바꾸지 않았습니다.
+
 ### 다음 단계
 
 - 배치 프로시저 — 사망정보 매칭에서 차단 생성까지
-- 판정 로직을 Java 서비스 계층으로 이관
+- 판정 로직을 Java 서비스 계층으로 이관 — `FOR UPDATE`와 데드락 재시도 포함
 - 로그 보존기간 확정과 아카이브 이관 설계
 
 판정 로직을 프로시저에 몰아넣지 않았습니다. 규칙은 테이블에 두고 조합과 분기는 서비스 계층에 두는 구조라, Java로 옮길 때 DB 쪽을 거의 건드리지 않아도 됩니다.

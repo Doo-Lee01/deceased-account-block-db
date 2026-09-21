@@ -2,6 +2,8 @@
 
 같은 계좌에 두 거래가 동시에 들어올 때 생기는 문제와 해결 방법을 세 개의 터미널(A · B · OBS)로 재현합니다.
 
+**[📑 실습 보고서 보기](https://Doo-Lee01.github.io/deceased-account-block-db/lock-lab-report.html)** — 시나리오별 원리와 터미널 흐름을 슬라이드 12장으로 정리했습니다. 원본은 [`docs/lock-lab-report.html`](../docs/lock-lab-report.html)입니다.
+
 | 시나리오 | 파일 | 결과 |
 |---|---|---|
 | 1. 데드락 발생 | `01_deadlock.sql` | B가 `ERROR 1213`으로 취소됨 |
@@ -387,6 +389,9 @@ UPDATE acct SET balance_amt = balance_amt + 10000 WHERE ...
 ## 파일 목록
 
 ```
+docs/
+└─ lock-lab-report.html    실습 보고서 (웹: 상단 링크)
+
 concurrency/
 ├─ README.md               이 문서
 ├─ lock-lab.bat            A · B · OBS 터미널 런처 (Windows)

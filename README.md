@@ -597,7 +597,8 @@ mysql -u root -p --force < constraint_tests.sql
     ├─ erd-overview.png       전체 ERD 이미지
     ├─ conceptual-erd.drawio  개념 ERD
     ├─ logical-erd.drawio     논리 ERD — 7개 탭
-    └─ presentation.html      발표 자료
+    ├─ presentation.html      발표 자료
+    └─ lock-lab-report.html   락 · 데드락 실습 보고서
 ```
 
 ### data-dictionary.xlsx
@@ -640,7 +641,7 @@ mysql -u root -p --force < constraint_tests.sql
 
 ### 동시성
 
-스키마 설계 범위라 트랜잭션 제어는 구현하지 않았습니다. 다만 동시 거래에서 생기는 문제를 재현하고 해결 순서를 검증해 [`concurrency/`](concurrency/)에 정리했습니다.
+스키마 설계 범위라 트랜잭션 제어는 구현하지 않았습니다. 다만 동시 거래에서 생기는 문제를 재현하고 해결 순서를 검증해 [`concurrency/`](concurrency/)에 정리했습니다. 원리와 터미널 흐름은 [실습 보고서](https://Doo-Lee01.github.io/deceased-account-block-db/lock-lab-report.html)에서 슬라이드로 볼 수 있습니다.
 
 `acct_txn.acct_no`의 FK는 원장 기록 시 계좌 행에 공유락을 겁니다. 그래서 "원장 기록 → 잔액 변경" 순서로 두 거래가 같은 계좌를 처리하면 데드락이 납니다. 계좌를 `SELECT … FOR UPDATE`로 먼저 잠그면 해소되고, 이때도 일반 조회는 기다리지 않습니다. 이 해결은 트랜잭션 작성 방식의 문제라 `schema.sql`은 바꾸지 않았습니다.
 

@@ -2,9 +2,6 @@
 -- schema.sql
 -- 사망자 명의 금융거래 신속차단 시스템 - DDL 스크립트
 --
--- 스키마 5개 / 테이블 30개 / PK 30 · UNIQUE 17 · FK 67 · CHECK 41 · 인덱스 15
--- 검증 환경 : MySQL 8.0.46 / InnoDB / utf8mb4
---
 -- 실행 순서 : schema.sql → seed_data.sql → validation_queries.sql
 -- 재실행 가능 : 첫 부분에서 기존 스키마를 모두 DROP 후 재생성합니다.
 --
@@ -423,7 +420,8 @@ CREATE TABLE auto_transfer_result (
   CONSTRAINT fk_atres_at   FOREIGN KEY (auto_transfer_id) REFERENCES auto_transfer (auto_transfer_id),
   CONSTRAINT fk_atres_code FOREIGN KEY (result_grp, result_cd)
     REFERENCES comm_code.code_detail (group_cd, code_cd),
-  CONSTRAINT fk_atres_rsp  FOREIGN KEY (fail_rsp_cd) REFERENCES comm_code.rsp_code (rsp_cd)
+  CONSTRAINT fk_atres_rsp  FOREIGN KEY (fail_rsp_cd) REFERENCES comm_code.rsp_code (rsp_cd),
+  CONSTRAINT fk_atres_txn  FOREIGN KEY (txn_unique_no) REFERENCES acct_txn (txn_unique_no)
 ) ENGINE=InnoDB COMMENT='자동이체 처리결과';
 
 CREATE TABLE payee_registry (

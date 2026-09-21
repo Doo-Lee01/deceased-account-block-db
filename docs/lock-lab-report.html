@@ -1,0 +1,1060 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>데이터 모델링 & 트랜잭션 락 실습 종합 보고서 (시뮬레이션 포함)</title>
+  <style>
+    :root {
+      --bg-color: #f7f6f3;
+      --card-bg: #ffffff;
+      --text-main: #2f3437;
+      --text-muted: #6a737d;
+      --border-color: #e1e4e8;
+      --accent-blue: #0969da;
+      --accent-red: #cf222e;
+      --accent-green: #1a7f37;
+      --accent-yellow: #9a6700;
+      --tag-bg: #f3f4f6;
+      --code-bg: #f6f8fa;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-main);
+      font-family: 'Malgun Gothic', '맑은 고딕', AppleSDGothicNeo-Regular, sans-serif;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 16px;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    /* 슬라이드 덱 본체 */
+    .deck-container {
+      width: 100%;
+      max-width: 1240px;
+      height: 780px;
+      position: relative;
+      background: var(--card-bg);
+      border-radius: 14px;
+      border: 1px solid var(--border-color);
+      box-shadow: 0 8px 30px rgba(0, 0, 0, 0.08);
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* 상단 헤더 */
+    .deck-header {
+      padding: 14px 28px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      border-bottom: 1px solid var(--border-color);
+      background: #fafbfc;
+    }
+    .badge {
+      font-size: 0.95rem;
+      padding: 4px 12px;
+      border-radius: 6px;
+      background: var(--tag-bg);
+      color: var(--text-main);
+      font-weight: 700;
+      border: 1px solid var(--border-color);
+    }
+    .slide-indicator {
+      font-size: 1rem;
+      color: var(--text-muted);
+      font-weight: 700;
+    }
+
+    /* 슬라이드 레이아웃 */
+    .slide {
+      display: none;
+      flex-direction: column;
+      flex: 1;
+      padding: 24px 32px;
+      overflow-y: auto;
+      gap: 14px;
+    }
+    .slide.active {
+      display: flex;
+      animation: fadeIn 0.2s ease-in-out;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(4px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    .slide-title-group {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .slide-title {
+      font-size: 1.75rem;
+      font-weight: 700;
+      color: #111;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      letter-spacing: -0.5px;
+    }
+    .slide-subtitle {
+      font-size: 1rem;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+
+    /* 3단 논리 그리드 (이론용) */
+    .logic-grid {
+      display: grid;
+      grid-template-columns: 1fr 1.3fr 1fr;
+      gap: 14px;
+      flex: 1;
+    }
+    .logic-card {
+      background: #ffffff;
+      border: 1px solid var(--border-color);
+      border-radius: 10px;
+      padding: 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.02);
+    }
+    .card-label {
+      font-size: 0.98rem;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .card-label.req { color: var(--accent-blue); }
+    .card-label.mech { color: var(--accent-yellow); }
+    .card-label.eff { color: var(--accent-green); }
+    .card-label.err { color: var(--accent-red); }
+
+    .card-content {
+      font-size: 0.94rem;
+      line-height: 1.6;
+      color: #24292f;
+    }
+    .card-content ul {
+      padding-left: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    pre.code-box {
+      background: var(--code-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 10px 12px;
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 0.85rem;
+      color: #1f2328;
+      overflow-x: auto;
+      line-height: 1.45;
+    }
+    .syntax-tip {
+      background: #f8fafc;
+      border: 1px solid #d0d7de;
+      border-left: 4px solid var(--accent-blue);
+      border-radius: 6px;
+      padding: 8px 12px;
+      font-size: 0.88rem;
+      color: #333;
+      line-height: 1.45;
+    }
+
+    /* =========================================================
+       첨부 사진 기반 터미널 분할 윈도우 스타일 (Dark GUI)
+       좌측: OBS 세로 전체 / 우측: A(상단), B(하단)
+       ========================================================= */
+    .terminal-desktop {
+      display: grid;
+      grid-template-columns: 1fr 1.25fr;
+      gap: 10px;
+      flex: 1;
+      height: 570px;
+      background: #1e1e1e;
+      border-radius: 8px;
+      padding: 8px;
+    }
+    .term-col-left {
+      height: 100%;
+    }
+    .term-col-right {
+      display: grid;
+      grid-template-rows: 1fr 1fr;
+      gap: 10px;
+      height: 100%;
+    }
+
+    .term-win {
+      background: #0c0c0c;
+      border: 1px solid #333333;
+      border-radius: 6px;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .term-titlebar {
+      background: #202020;
+      color: #cccccc;
+      padding: 5px 12px;
+      font-size: 0.82rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid #333;
+      font-family: Consolas, monospace;
+      user-select: none;
+    }
+    .term-titlebar .win-btns span {
+      display: inline-block;
+      margin-left: 8px;
+      color: #888;
+      font-size: 0.75rem;
+    }
+    .term-body {
+      padding: 10px 14px;
+      font-family: Consolas, "Courier New", monospace;
+      font-size: 0.83rem;
+      color: #cccccc;
+      line-height: 1.45;
+      overflow-y: auto;
+      flex: 1;
+    }
+
+    /* 터미널 내부 강조 폰트 및 주석 */
+    .t-prompt { color: #569cd6; font-weight: bold; }
+    .t-cmd { color: #dcdcaa; }
+    .t-comment { color: #6a9955; font-style: italic; }
+    .t-step {
+      display: inline-block;
+      background: #264f78;
+      color: #ffffff;
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-weight: bold;
+      font-size: 0.78rem;
+      margin: 4px 0 2px;
+    }
+    .t-step.obs { background: #4ec9b0; color: #000; }
+    .t-step.flow { background: #ce9178; color: #000; }
+    .t-error { color: #f48771; font-weight: bold; }
+    .t-wait { color: #dcdcaa; background: #3a3d41; padding: 1px 4px; border-radius: 3px; }
+    .t-arrow { color: #e5c07b; font-weight: bold; }
+
+    /* 하단 푸터 */
+    .deck-footer {
+      padding: 12px 28px;
+      border-top: 1px solid var(--border-color);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #fafbfc;
+    }
+    .btn {
+      padding: 7px 18px;
+      font-size: 0.92rem;
+      font-weight: 600;
+      border: 1px solid #d0d7de;
+      border-radius: 6px;
+      background: #ffffff;
+      color: #24292f;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .btn:hover { background: #f3f4f6; }
+    .btn:disabled { opacity: 0.4; cursor: not-allowed; }
+  </style>
+</head>
+<body>
+
+<div class="deck-container">
+  <!-- 상단 상태표시 -->
+  <div class="deck-header">
+    <span class="badge">InnoDB 트랜잭션 락 실습 & 아키텍처 보고서</span>
+    <span class="slide-indicator" id="slideIndicator">1 / 11</span>
+  </div>
+
+  <!-- ========================================================
+       SLIDE 1: 0. 실습 테이블 구조와 락의 본질
+       ======================================================== -->
+  <div class="slide active">
+    <div class="slide-title-group">
+      <h1 class="slide-title">0. 실습 데이터 모델링 구조와 락(Lock)의 본질</h1>
+      <p class="slide-subtitle">마스터(acct) - 상세(acct_txn) 구조와 InnoDB 엔진의 실제 락 규칙</p>
+    </div>
+    <div class="logic-grid" style="grid-template-columns: 1.1fr 1.2fr;">
+      <div class="logic-card">
+        <span class="card-label req">📊 실습 테이블 및 컬럼 구조</span>
+        <div class="card-content">
+          <p><strong>1. 계좌 마스터 (acct)</strong>: 계좌의 최종 상태 관리</p>
+          <ul>
+            <li><code>acct_no</code> (PK): 계좌번호 ('10288000000001')</li>
+            <li><code>balance_amt</code>: 최종 잔액 (초기값 1,000,000원)</li>
+            <li><code>CHECK (balance_amt &gt;= 0)</code>: 음수 잔액 차단 제약</li>
+          </ul>
+          <p style="margin-top: 10px;"><strong>2. 거래 원장 (acct_txn)</strong>: 개별 거래 이력</p>
+          <ul>
+            <li><code>txn_id</code> (PK · 대리키), <code>txn_unique_no</code> (UNIQUE · 거래고유번호)</li>
+            <li><code>txn_amt</code> (거래금액)</li>
+            <li><code>acct_no</code> (FK): <strong>acct(acct_no)를 참조하는 외래키</strong></li>
+          </ul>
+        </div>
+      </div>
+      <div class="logic-card">
+        <span class="card-label mech">🔒 S락(공유락)과 X락(배타락)의 실체</span>
+        <div class="card-content">
+          <p>InnoDB는 <strong>행 단위</strong>로 두 종류의 락을 겁니다.</p>
+          <ul>
+            <li><strong>S락 (Shared · 공유락)</strong>: "참조 중이니 지우거나 수정하지 마라."<br>👉 여러 트랜잭션이 한 행에 <em>동시에</em> 획득 가능.</li>
+            <li><strong>X락 (Exclusive · 배타락)</strong>: "내가 값을 바꿀 테니 아무도 손대지 마라."<br>👉 오직 <em>한 세션만 독점</em> 가능.</li>
+            <li><strong>★ FK의 숨은 S락 동작</strong>: 자식(<code>acct_txn</code>)에 INSERT할 때, 부모(<code>acct</code>) 계좌가 사라지지 않도록 <strong>엔진이 부모 행에 자동으로 S락을 걺!</strong></li>
+            <li><strong>호환 규칙</strong>: S와 S는 함께 가질 수 있고, S와 X · X와 X는 함께 가질 수 없음. 받지 못한 쪽은 대기.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================
+       SLIDE 2: 시나리오 1 - 입금 데드락 (이론)
+       ======================================================== -->
+  <div class="slide">
+    <div class="slide-title-group">
+      <h1 class="slide-title">1-1. [입금 ↔ 입금] 데드락(Deadlock) 발생 이론</h1>
+      <p class="slide-subtitle">FK 검증 시 암묵적으로 부여되는 S락과 잔액 UPDATE X락의 교차 대기</p>
+    </div>
+    <div class="logic-grid">
+      <div class="logic-card">
+        <span class="card-label req">1. 업무 요구사항</span>
+        <div class="card-content">
+          <strong>동시 입금(각 1만 원) 누적</strong>
+          <p style="margin-top: 8px;">동일 계좌(100만 원)에 세션 A와 B가 동시에 1만 원씩 입금할 때, 두 거래 모두 승인되어 최종 잔액 <strong>1,020,000원</strong>이 되어야 함.</p>
+        </div>
+      </div>
+      <div class="logic-card">
+        <span class="card-label err">2. 코드 및 데드락 메커니즘</span>
+        <div class="card-content">
+<pre class="code-box">INSERT INTO acct_txn ... VALUES (...); -- ① 원장 기록
+UPDATE acct 
+   SET balance_amt = balance_amt + 10000; -- ② 잔액 갱신</pre>
+          <div class="syntax-tip" style="margin-top: 6px;">
+            <strong>데드락 완성 루프:</strong><br>
+            • A, B 둘 다 ① 실행: 부모 계좌 행에 <strong>S락</strong> 각각 획득<br>
+            • A가 ② 실행: <strong>X락</strong> 요구 ➔ B의 S락 때문에 <strong>WAIT</strong><br>
+            • B가 ② 실행: <strong>X락</strong> 요구 ➔ A의 S락 때문에 <strong>WAIT</strong><br>
+            ➔ 서로 상대 S락이 풀리기만을 무한히 기다리는 순환 대기 형성!
+          </div>
+        </div>
+      </div>
+      <div class="logic-card">
+        <span class="card-label eff">3. 결과 및 문제점</span>
+        <div class="card-content">
+          <ul style="color: var(--accent-red);">
+            <li><strong>ERROR 1213 (Deadlock found)</strong>: 엔진이 순환 대기를 감지해 <strong>한쪽 트랜잭션을 통째로 롤백</strong>. 실습에서는 B가 취소됨 (어느 쪽일지는 엔진이 선택).</li>
+            <li><strong>재시도 필요</strong>: A의 1만 원만 반영(1,010,000원). B는 오류를 받고 롤백되어 입금을 다시 요청해야 함. 돈이 사라진 것은 아님.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================
+       SLIDE 3: 시나리오 1 - 입금 데드락 터미널 재현 (3분할 윈도우)
+       ======================================================== -->
+  <div class="slide">
+    <div class="slide-title-group">
+      <h1 class="slide-title">1-1-T. 시나리오 1 터미널 시뮬레이션 [01_deadlock.sql]</h1>
+      <p class="slide-subtitle">A와 B 터미널의 교차 실행 순서와 OBS 관측 뷰(v_locks, v_waits) 모니터링</p>
+    </div>
+    <div class="terminal-desktop">
+      <!-- 좌측 OBS 터미널 -->
+      <div class="term-col-left">
+        <div class="term-win" style="height: 100%;">
+          <div class="term-titlebar">
+            <span>🖥️ OBS terminal</span>
+            <div class="win-btns"><span>─</span><span>□</span><span>✕</span></div>
+          </div>
+          <div class="term-body">
+            <span class="t-step obs">[STEP 0] 초기화</span><br>
+            <span class="t-prompt">OBS&gt;</span> <span class="t-cmd">CALL lock_lab.reset();</span><br>
+            <span class="t-comment">-- 잔액: 1,000,000원</span><br><br>
+
+            <span class="t-step obs">[STEP 2 &amp; 4] 락 상태 관측</span><br>
+            <span class="t-prompt">OBS&gt;</span> <span class="t-cmd">SELECT who, tbl, kind, raw_mode, status FROM lock_lab.v_locks;</span><br>
+            <span class="t-comment">| who | tbl  | kind     | raw_mode      | status  |</span><br>
+            <span class="t-comment">| A   | acct | S (read) | S,REC_NOT_GAP | GRANTED |</span><br>
+            <span class="t-comment">| B   | acct | S (read) | S,REC_NOT_GAP | GRANTED |</span><br>
+            <span class="t-arrow">➔ A, B 둘 다 계좌 행에 S락(공유)을 쥐고 있음!</span><br><br>
+
+            <span class="t-step obs">[STEP 6] 대기 상태 관측</span><br>
+            <span class="t-prompt">OBS&gt;</span> <span class="t-cmd">SELECT * FROM lock_lab.v_waits;</span><br>
+            <span class="t-comment">waiting: A (wants X) ➔ blocked_by: B (holds S)</span><br><br>
+
+            <span class="t-step obs">[STEP 9] 최종 결과</span><br>
+            <span class="t-prompt">OBS&gt;</span> <span class="t-cmd">SELECT * FROM lock_lab.v_acct;</span><br>
+            <span class="t-error">BALANCE: 1,010,000 (A 입금만 반영, B 취소됨)</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 우측 A/B 터미널 -->
+      <div class="term-col-right">
+        <!-- A 터미널 -->
+        <div class="term-win">
+          <div class="term-titlebar">
+            <span>👤 A terminal</span>
+            <div class="win-btns"><span>─</span><span>□</span><span>✕</span></div>
+          </div>
+          <div class="term-body">
+            <span class="t-step">[STEP 1] 트랜잭션 시작 및 원장 기록</span><br>
+            <span class="t-prompt">A&gt;</span> <span class="t-cmd">BEGIN;</span><br>
+            <span class="t-prompt">A&gt;</span> <span class="t-cmd">INSERT INTO acct_txn (…) VALUES ('DEMO-S1-A', '1028...', ..., 10000, ...);</span><br>
+            <span class="t-comment">-- ★ FK 검증으로 acct 행에 S락 자동 부여됨 (GRANTED)</span><br><br>
+
+            <span class="t-step">[STEP 5] 잔액 변경 시도 ➔ 대기!</span><br>
+            <span class="t-prompt">A&gt;</span> <span class="t-cmd">UPDATE acct SET balance_amt = balance_amt + 10000 WHERE ...;</span><br>
+            <span class="t-wait">... [커서 깜빡임: B의 S락 때문에 멈춤] ...</span><br>
+            <span class="t-arrow">➔ [STEP 7에서 B 롤백 순간 풀림] Query OK, 1 row affected</span><br>
+            <span class="t-prompt">A&gt;</span> <span class="t-cmd">COMMIT;</span>
+          </div>
+        </div>
+
+        <!-- B 터미널 -->
+        <div class="term-win">
+          <div class="term-titlebar">
+            <span>👤 B terminal</span>
+            <div class="win-btns"><span>─</span><span>□</span><span>✕</span></div>
+          </div>
+          <div class="term-body">
+            <span class="t-step flow">[STEP 3] 원장 기록 (S락 추가 획득)</span><br>
+            <span class="t-prompt">B&gt;</span> <span class="t-cmd">BEGIN;</span><br>
+            <span class="t-prompt">B&gt;</span> <span class="t-cmd">INSERT INTO acct_txn (…) VALUES ('DEMO-S1-B', '1028...', ..., 10000, ...);</span><br>
+            <span class="t-comment">-- S락끼리는 공유 가능하므로 B도 성공 (계좌 행에 S락 2개)</span><br><br>
+
+            <span class="t-step flow">[STEP 7] 잔액 변경 시도 ➔ 데드락 폭발!</span><br>
+            <span class="t-prompt">B&gt;</span> <span class="t-cmd">UPDATE acct SET balance_amt = balance_amt + 10000 WHERE ...;</span><br>
+            <span class="t-error">ERROR 1213 (40001): Deadlock found when trying to get lock;</span><br>
+            <span class="t-comment">-- 엔진에 의해 B 강제 롤백됨 (B의 S락 해제 ➔ A가 풀림)</span><br>
+            <span class="t-prompt">B&gt;</span> <span class="t-cmd">ROLLBACK;</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================
+       SLIDE 4: 시나리오 2 - 데드락 해결 FOR UPDATE (이론)
+       ======================================================== -->
+  <div class="slide">
+    <div class="slide-title-group">
+      <h1 class="slide-title">1-2. [입금 ↔ 입금] FOR UPDATE를 통한 데드락 해결 이론</h1>
+      <p class="slide-subtitle">시작부터 배타락(X)을 획득하여 S↔X 교차 대기 조건을 원천 차단</p>
+    </div>
+    <div class="logic-grid">
+      <div class="logic-card">
+        <span class="card-label req">1. 업무 요구사항</span>
+        <div class="card-content">
+          <strong>무결성 보장 및 무오류 순차 처리</strong>
+          <p style="margin-top: 8px;">두 입금이 동시 요청되어도 데드락 에러 없이, 큐(Queue)처럼 차례대로 실행되어 두 건 모두 100% 누적 반영되어야 함.</p>
+        </div>
+      </div>
+      <div class="logic-card">
+        <span class="card-label mech">2. FOR UPDATE 문법의 메커니즘</span>
+        <div class="card-content">
+<pre class="code-box">BEGIN;
+-- ★ 핵심: 조회하면서 바로 쓰기락(X) 획득
+SELECT balance_amt INTO @bal 
+  FROM acct WHERE acct_no = '...' 
+   FOR UPDATE; 
+INSERT INTO acct_txn ...;
+UPDATE acct SET balance_amt = ...;
+COMMIT;</pre>
+          <div class="syntax-tip" style="margin-top: 6px;">
+            <strong>해결 원리:</strong> A가 <code>FOR UPDATE</code>로 X락을 먼저 쥠. B는 S락조차 못 쥐고 입구에서 대기하므로 <strong>"둘 다 S락을 쥔 상태" 자체가 만들어지지 않음!</strong>
+          </div>
+        </div>
+      </div>
+      <div class="logic-card">
+        <span class="card-label eff">3. 처리 효과</span>
+        <div class="card-content">
+          <ul style="color: var(--accent-green);">
+            <li><strong>데드락 원천 제거</strong>: B가 아무런 락을 쥐지 않은 채(WAITING) A만 기다리는 1방향 대기.</li>
+            <li>A 종료 후 B가 풀려 <strong>최종 1,020,000원</strong> 정상 저장.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================
+       SLIDE 5: 시나리오 2 - 데드락 해결 터미널 시뮬레이션
+       ======================================================== -->
+  <div class="slide">
+    <div class="slide-title-group">
+      <h1 class="slide-title">1-2-T. 시나리오 2 터미널 시뮬레이션 [02_deadlock_fixed.sql]</h1>
+      <p class="slide-subtitle">A의 선제적 X락 점유로 B가 시작 지점에서 대기하고, A 커밋 후 B가 정상 완료되는 흐름</p>
+    </div>
+    <div class="terminal-desktop">
+      <!-- 좌측 OBS 터미널 -->
+      <div class="term-col-left">
+        <div class="term-win" style="height: 100%;">
+          <div class="term-titlebar">
+            <span>🖥️ OBS terminal</span>
+            <div class="win-btns"><span>─</span><span>□</span><span>✕</span></div>
+          </div>
+          <div class="term-body">
+            <span class="t-step obs">[STEP 0] 초기화</span><br>
+            <span class="t-prompt">OBS&gt;</span> <span class="t-cmd">CALL lock_lab.reset();</span><br><br>
+
+            <span class="t-step obs">[STEP 2 &amp; 4] 락 상태 관측</span><br>
+            <span class="t-prompt">OBS&gt;</span> <span class="t-cmd">SELECT who, tbl, kind, status FROM lock_lab.v_locks;</span><br>
+            <span class="t-comment">| who | tbl  | kind      | status  |</span><br>
+            <span class="t-comment">| A   | acct | X (write) | GRANTED | ➔ A만 독점</span><br>
+            <span class="t-comment">| B   | acct | X (write) | WAITING | ➔ B는 쥔 것 없이 대기</span><br><br>
+            <span class="t-arrow">➔ B가 락을 쥐지 않았으므로 데드락 가능성 제로!</span><br><br>
+
+            <span class="t-step obs">[STEP 7] 최종 결과</span><br>
+            <span class="t-prompt">OBS&gt;</span> <span class="t-cmd">SELECT * FROM lock_lab.v_acct;</span><br>
+            <span class="t-comment">| item      | value     | note            |</span><br>
+            <span class="t-comment">| BALANCE   | 1,020,000 | NULL            |</span><br>
+            <span class="t-comment">| DEMO-S2-A | +10,000   | after 1,010,000 |</span><br>
+            <span class="t-comment">| DEMO-S2-B | +10,000   | after 1,020,000 |</span><br>
+            <span class="t-arrow">✔ 두 건 모두 성공, 잔액 완벽 일치</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 우측 A/B 터미널 -->
+      <div class="term-col-right">
+        <!-- A 터미널 -->
+        <div class="term-win">
+          <div class="term-titlebar">
+            <span>👤 A terminal</span>
+            <div class="win-btns"><span>─</span><span>□</span><span>✕</span></div>
+          </div>
+          <div class="term-body">
+            <span class="t-step">[STEP 1] X락 잡으며 조회</span><br>
+            <span class="t-prompt">A&gt;</span> <span class="t-cmd">BEGIN;</span><br>
+            <span class="t-prompt">A&gt;</span> <span class="t-cmd">SELECT balance_amt INTO @bal FROM acct ... FOR UPDATE;</span><br>
+            <span class="t-comment">-- A가 acct 행에 배타락(X) 선점 완료</span><br><br>
+
+            <span class="t-step">[STEP 5] 원장 기록 ➔ 잔액 변경 ➔ COMMIT</span><br>
+            <span class="t-prompt">A&gt;</span> <span class="t-cmd">INSERT INTO acct_txn (…) VALUES ('DEMO-S2-A', ...);</span><br>
+            <span class="t-prompt">A&gt;</span> <span class="t-cmd">UPDATE acct SET balance_amt = balance_amt + 10000 WHERE ...;</span><br>
+            <span class="t-prompt">A&gt;</span> <span class="t-cmd">COMMIT;</span> <span class="t-arrow">➔ A의 X락 해제 (B가 깨어남!)</span>
+          </div>
+        </div>
+
+        <!-- B 터미널 -->
+        <div class="term-win">
+          <div class="term-titlebar">
+            <span>👤 B terminal</span>
+            <div class="win-btns"><span>─</span><span>□</span><span>✕</span></div>
+          </div>
+          <div class="term-body">
+            <span class="t-step flow">[STEP 3] B도 FOR UPDATE 시도 ➔ 대기</span><br>
+            <span class="t-prompt">B&gt;</span> <span class="t-cmd">BEGIN;</span><br>
+            <span class="t-prompt">B&gt;</span> <span class="t-cmd">SELECT balance_amt INTO @bal FROM acct ... FOR UPDATE;</span><br>
+            <span class="t-wait">... [커서 깜빡임: A의 X락 때문에 멈춤] ...</span><br>
+            <span class="t-arrow">➔ [STEP 5에서 A 커밋 순간 풀림!] locked_balance: 1010000.00</span><br><br>
+
+            <span class="t-step flow">[STEP 6] 최신 잔액 기반으로 정상 처리</span><br>
+            <span class="t-prompt">B&gt;</span> <span class="t-cmd">INSERT INTO acct_txn (…) VALUES ('DEMO-S2-B', ...);</span><br>
+            <span class="t-prompt">B&gt;</span> <span class="t-cmd">UPDATE acct SET balance_amt = balance_amt + 10000 WHERE ...;</span><br>
+            <span class="t-prompt">B&gt;</span> <span class="t-cmd">COMMIT;</span> <span class="t-comment">-- 완벽한 순차 성공!</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================
+       SLIDE 6: 시나리오 3 - 동시 출금 갱신 분실 & CHECK 한계 (이론)
+       ======================================================== -->
+  <div class="slide">
+    <div class="slide-title-group">
+      <h1 class="slide-title">2-1. [출금 ↔ 출금] 갱신 분실(Lost Update)과 CHECK의 한계</h1>
+      <p class="slide-subtitle">락 없는 단순 조회 판정의 위험성과 CHECK 제약조건이 사고를 못 막는 이유</p>
+    </div>
+    <div class="logic-grid">
+      <div class="logic-card">
+        <span class="card-label req">1. 업무 요구사항</span>
+        <div class="card-content">
+          <strong>초과 인출 차단 (한도 엄수)</strong>
+          <p style="margin-top: 8px;">잔액 100만 원 계좌에서 동시 70만 원 출금 시, <strong>반드시 1명만 승인되고 나머지 1명은 잔액 부족으로 거절</strong>되어야 함.</p>
+        </div>
+      </div>
+      <div class="logic-card">
+        <span class="card-label err">2. 무잠금 출금의 오류</span>
+        <div class="card-content">
+<pre class="code-box">-- [PART A: 앱 변수 덮어쓰기]
+UPDATE acct SET balance_amt = @bal - 700000;
+-- [PART B: DB 직접 차감]
+UPDATE acct SET balance_amt = balance_amt - 700000;</pre>
+          <ul style="margin-top: 6px;">
+            <li><strong>PART A</strong>: 둘 다 100만을 보고 30만 원으로 덮어씀. 140만 원 인출됐으나 잔액은 30만 원 (70만 원 공중 분실). <em>30만 원은 양수라 CHECK 통과!</em></li>
+            <li><strong>PART B</strong>: DB가 -40만을 감지해 CHECK 제약으로 막음.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="logic-card">
+        <span class="card-label eff">3. CHECK 제약의 한계</span>
+        <div class="card-content">
+          <p><strong>"CHECK는 잔액은 지키지만, 잘못된 판단은 막지 못한다"</strong></p>
+          <p style="margin-top: 8px;">B는 100만 원을 보고 이미 <em>승인</em> 판단을 내린 뒤에 실패했습니다. 판단 직후 ATM이 현금을 내줬다면 <strong>돈은 나갔는데 전산 기록은 없는 사고</strong>가 됩니다. CHECK는 마지막 방어선이지 올바른 처리 방법이 아닙니다.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================
+       SLIDE 7: 시나리오 3 - 출금 문제 터미널 시뮬레이션
+       ======================================================== -->
+  <div class="slide">
+    <div class="slide-title-group">
+      <h1 class="slide-title">2-1-T. 시나리오 3 터미널 시뮬레이션 [03_lost_update.sql]</h1>
+      <p class="slide-subtitle">PART A: 에러 없이 70만 원이 증발하는 과정 vs PART B: 사후 CHECK 에러 폭탄</p>
+    </div>
+    <div class="terminal-desktop">
+      <!-- 좌측 OBS 터미널 -->
+      <div class="term-col-left">
+        <div class="term-win" style="height: 100%;">
+          <div class="term-titlebar">
+            <span>🖥️ OBS terminal</span>
+            <div class="win-btns"><span>─</span><span>□</span><span>✕</span></div>
+          </div>
+          <div class="term-body">
+            <span class="t-step obs">[PART A 관측: 갱신 분실]</span><br>
+            <span class="t-prompt">OBS&gt;</span> <span class="t-cmd">SELECT * FROM lock_lab.v_acct;</span><br>
+            <span class="t-error">BALANCE: 300,000</span><br>
+            <span class="t-arrow">★ 140만 원이 나갔는데 30만 원이 남음!</span><br>
+            <span class="t-comment">-- B가 A의 출금 사실을 모르고 30만을 덮어써서 70만 원 증발</span><br>
+            <span class="t-comment">-- CHECK(balance_amt &gt;= 0)은 30만이 양수라 감지 못함!</span><br><br>
+
+            <span class="t-step obs">[PART B 관측: DB에서 계산한 경우]</span><br>
+            <span class="t-prompt">OBS&gt;</span> <span class="t-cmd">CALL lock_lab.reset();</span><br>
+            <span class="t-comment">-- (A · B 가 PART B 를 진행한 뒤)</span><br>
+            <span class="t-prompt">OBS&gt;</span> <span class="t-cmd">SELECT * FROM lock_lab.v_acct;</span><br>
+            <span class="t-comment">BALANCE: 300,000</span><br>
+            <span class="t-arrow">➔ 잔액은 지켜졌지만, B는 승인 판단을 내린 뒤 실패함</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 우측 A/B 터미널 -->
+      <div class="term-col-right">
+        <!-- A 터미널 -->
+        <div class="term-win">
+          <div class="term-titlebar">
+            <span>👤 A terminal (출금 70만)</span>
+            <div class="win-btns"><span>─</span><span>□</span><span>✕</span></div>
+          </div>
+          <div class="term-body">
+            <span class="t-step">[STEP A1] 락 없이 잔액 조회</span><br>
+            <span class="t-prompt">A&gt;</span> <span class="t-cmd">SELECT balance_amt INTO @bal ...;</span> <span class="t-comment">-- 1,000,000원 확인</span><br>
+            <span class="t-comment">-- A 판단: "100만 원 있으니 70만 원 출금 승인"</span><br><br>
+
+            <span class="t-step">[STEP A3 &amp; A6] 잔액 덮어쓰기 &amp; 커밋</span><br>
+            <span class="t-prompt">A&gt;</span> <span class="t-cmd">UPDATE acct SET balance_amt = @bal - 700000;</span> <span class="t-comment">-- 30만 저장</span><br>
+            <span class="t-prompt">A&gt;</span> <span class="t-cmd">COMMIT;</span> <span class="t-arrow">➔ B의 대기가 풀림</span><br><br>
+
+            <span class="t-step">[PART B · STEP B1 &amp; B3] DB에서 차감 &amp; 커밋</span><br>
+            <span class="t-prompt">A&gt;</span> <span class="t-cmd">UPDATE acct SET balance_amt = balance_amt - 700000;</span><br>
+            <span class="t-prompt">A&gt;</span> <span class="t-cmd">COMMIT;</span>
+          </div>
+        </div>
+
+        <!-- B 터미널 -->
+        <div class="term-win">
+          <div class="term-titlebar">
+            <span>👤 B terminal (출금 70만)</span>
+            <div class="win-btns"><span>─</span><span>□</span><span>✕</span></div>
+          </div>
+          <div class="term-body">
+            <span class="t-step flow">[STEP A2] B도 락 없이 잔액 조회</span><br>
+            <span class="t-prompt">B&gt;</span> <span class="t-cmd">SELECT balance_amt INTO @bal ...;</span> <span class="t-comment">-- 똑같이 1,000,000원 확인</span><br>
+            <span class="t-comment">-- B 판단: "100만 원 있으니 나도 70만 원 출금 승인!"</span><br><br>
+
+            <span class="t-step flow">[STEP A4 &amp; A6] 덮어쓰기 대기 ➔ 풀린 후 실행</span><br>
+            <span class="t-prompt">B&gt;</span> <span class="t-cmd">UPDATE acct SET balance_amt = @bal - 700000;</span><br>
+            <span class="t-wait">... [A의 X락 때문에 잠시 멈춤] ...</span><br>
+            <span class="t-arrow">➔ [A 커밋 후] B도 옛날 기준의 "300,000원"을 그대로 덮어씀!</span><br>
+            <span class="t-prompt">B&gt;</span> <span class="t-cmd">COMMIT;</span> <span class="t-error">-- 에러 없이 금융사고 발생</span><br><br>
+
+            <span class="t-step flow">[PART B · STEP B2] 조회 후 DB에서 차감 시도</span><br>
+            <span class="t-prompt">B&gt;</span> <span class="t-cmd">SELECT balance_amt INTO @bal ...;</span> <span class="t-comment">-- 1,000,000 (A 커밋 전이라 안 보임)</span><br>
+            <span class="t-prompt">B&gt;</span> <span class="t-cmd">UPDATE acct SET balance_amt = balance_amt - 700000;</span><br>
+            <span class="t-wait">... [A의 X락 때문에 대기] ...</span><br>
+            <span class="t-error">➔ [A 커밋 후] ERROR 3819: Check constraint 'ck_acct_balance' is violated.</span><br>
+            <span class="t-comment">-- 30만 - 70만 = -40만 → CHECK 가 거부</span><br>
+            <span class="t-prompt">B&gt;</span> <span class="t-cmd">ROLLBACK;</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================
+       SLIDE 8: 시나리오 5 - 조회 vs 출금 (이론)
+       ======================================================== -->
+  <div class="slide">
+    <div class="slide-title-group">
+      <h1 class="slide-title">2-2. [조회 ↔ 출금] 단순 조회와 판단용 조회는 다르다</h1>
+      <p class="slide-subtitle">화면 조회는 잠그지 않는 것이 맞고, 출금·이체 판단에 쓰는 조회만 잠근다</p>
+    </div>
+    <div class="logic-grid">
+      <div class="logic-card">
+        <span class="card-label req">1. 업무 요구사항</span>
+        <div class="card-content">
+          <strong>두 가지를 동시에 만족</strong>
+          <p style="margin-top: 8px;">① 고객의 <strong>잔액 조회 화면</strong>은 다른 채널에서 출금이 진행 중이어도 막히지 않아야 함.</p>
+          <p style="margin-top: 6px;">② <strong>출금·이체 판단</strong>은 다른 거래가 끼어들지 못하는 최신 확정 잔액으로 해야 함.</p>
+        </div>
+      </div>
+      <div class="logic-card">
+        <span class="card-label err">2. 충돌 흐름 메커니즘</span>
+        <div class="card-content">
+<pre class="code-box">-- [세션 1] 이체 판단용 조회 (잠그지 않음)
+SELECT balance_amt INTO @bal FROM acct ...; -- 100만
+-- [세션 2] ATM 전액 출금 후 COMMIT
+UPDATE acct SET balance_amt = balance_amt - 1000000;
+COMMIT;
+-- [세션 1] @bal(100만)을 믿고 이체 진행</pre>
+          <div class="syntax-tip" style="margin-top: 6px;">
+            <strong>문제는 조회 결과가 아니라 "틈"입니다.</strong> 읽은 순간의 100만은 맞는 값이었습니다. 하지만 그 값으로 이체하기까지의 사이에 다른 거래가 끼어들었습니다. 판단용 조회를 잠그지 않은 것이 원인입니다.
+          </div>
+        </div>
+      </div>
+      <div class="logic-card">
+        <span class="card-label eff">3. 해결 원리</span>
+        <div class="card-content">
+          <ul>
+            <li><strong>화면 조회 → 일반 SELECT</strong>: 락을 요청하지 않으므로 출금 중에도 기다리지 않고 <strong>마지막 확정 잔액</strong>을 보여줌 (MVCC).</li>
+            <li><strong>판단용 조회 → <code>FOR UPDATE</code></strong>: 읽는 순간 잠가서, 판단부터 처리까지 아무도 끼어들지 못하게 함.</li>
+            <li>어떤 조회인지는 DB가 알아내는 것이 아니라 <strong>개발자가 문장으로 정함</strong>.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================
+       SLIDE 9: 시나리오 5 - 잠겨 있어도 조회는 된다 터미널 시뮬레이션
+       ======================================================== -->
+  <div class="slide">
+    <div class="slide-title-group">
+      <h1 class="slide-title">2-2-T. 시나리오 5 터미널 시뮬레이션 [05_read_while_locked.sql]</h1>
+      <p class="slide-subtitle">A가 X락을 쥐고 출금 중이어도 B의 일반 조회는 기다리지 않고, 락을 요청하는 조회만 기다리는 흐름</p>
+    </div>
+    <div class="terminal-desktop">
+      <!-- 좌측 OBS 터미널 -->
+      <div class="term-col-left">
+        <div class="term-win" style="height: 100%;">
+          <div class="term-titlebar">
+            <span>🖥️ OBS terminal</span>
+            <div class="win-btns"><span>─</span><span>□</span><span>✕</span></div>
+          </div>
+          <div class="term-body">
+            <span class="t-step obs">[STEP A0] 초기화</span><br>
+            <span class="t-prompt">OBS&gt;</span> <span class="t-cmd">CALL lock_lab.reset();</span><br><br>
+
+            <span class="t-step obs">[STEP A2] A 의 락 확인</span><br>
+            <span class="t-prompt">OBS&gt;</span> <span class="t-cmd">SELECT who, kind, status FROM lock_lab.v_locks;</span><br>
+            <span class="t-comment">| who | kind      | status  |</span><br>
+            <span class="t-comment">| A   | X (write) | GRANTED |</span><br>
+            <span class="t-arrow">➔ A 가 계좌 행을 X락으로 쥐고 있음</span><br><br>
+
+            <span class="t-step obs">[STEP A5] B 가 FOR SHARE 로 조회한 뒤</span><br>
+            <span class="t-prompt">OBS&gt;</span> <span class="t-cmd">SELECT who, kind, status FROM lock_lab.v_locks;</span><br>
+            <span class="t-comment">| who | kind      | status  |</span><br>
+            <span class="t-comment">| A   | X (write) | GRANTED |</span><br>
+            <span class="t-comment">| B   | S (read)  | WAITING |</span><br>
+            <span class="t-arrow">➔ STEP A3 의 일반 조회 때는 B 가 이 목록에 없었음</span><br>
+            <span class="t-comment">-- 일반 SELECT 는 락을 요청하지 않기 때문</span><br><br>
+
+            <span class="t-step obs">[정리]</span><br>
+            <span class="t-comment">SELECT              락 없음 → 바로 나옴</span><br>
+            <span class="t-comment">SELECT … FOR SHARE  S 요청 → 기다림</span><br>
+            <span class="t-comment">SELECT … FOR UPDATE X 요청 → 기다림</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 우측 A/B 터미널 -->
+      <div class="term-col-right">
+        <!-- A 터미널 -->
+        <div class="term-win">
+          <div class="term-titlebar">
+            <span>👤 A terminal (출금 처리 중인 창구)</span>
+            <div class="win-btns"><span>─</span><span>□</span><span>✕</span></div>
+          </div>
+          <div class="term-body">
+            <span class="t-step">[STEP A1] 잠그고 잔액 변경 (커밋 안 함)</span><br>
+            <span class="t-prompt">A&gt;</span> <span class="t-cmd">BEGIN;</span><br>
+            <span class="t-prompt">A&gt;</span> <span class="t-cmd">SELECT balance_amt INTO @bal FROM acct ... FOR UPDATE;</span><br>
+            <span class="t-prompt">A&gt;</span> <span class="t-cmd">UPDATE acct SET balance_amt = balance_amt - 700000;</span><br>
+            <span class="t-comment">-- 잔액 30만으로 변경, 아직 확정 전 (X락 보유)</span><br><br>
+
+            <span class="t-step">[STEP A6] 출금 확정</span><br>
+            <span class="t-prompt">A&gt;</span> <span class="t-cmd">COMMIT;</span> <span class="t-arrow">➔ B 의 FOR SHARE 대기 해제</span>
+          </div>
+        </div>
+
+        <!-- B 터미널 -->
+        <div class="term-win">
+          <div class="term-titlebar">
+            <span>👤 B terminal (모바일 앱 잔액 조회)</span>
+            <div class="win-btns"><span>─</span><span>□</span><span>✕</span></div>
+          </div>
+          <div class="term-body">
+            <span class="t-step flow">[STEP A3] 일반 조회</span><br>
+            <span class="t-prompt">B&gt;</span> <span class="t-cmd">SELECT balance_amt AS plain_select FROM acct ...;</span><br>
+            <span class="t-arrow">➔ 즉시 1000000.00</span> <span class="t-comment">-- 기다리지 않음 · 확정된 값</span><br><br>
+
+            <span class="t-step flow">[STEP A4] 락을 요청하는 조회 ➔ 대기</span><br>
+            <span class="t-prompt">B&gt;</span> <span class="t-cmd">BEGIN;</span><br>
+            <span class="t-prompt">B&gt;</span> <span class="t-cmd">SELECT balance_amt AS for_share FROM acct ... FOR SHARE;</span><br>
+            <span class="t-wait">... [A 의 X락 때문에 멈춤] ...</span><br>
+            <span class="t-arrow">➔ [A 커밋 후 출력됨] 300000.00</span><br><br>
+
+            <span class="t-step flow">[STEP A7] 정리 후 다시 일반 조회</span><br>
+            <span class="t-prompt">B&gt;</span> <span class="t-cmd">ROLLBACK;</span><br>
+            <span class="t-prompt">B&gt;</span> <span class="t-cmd">SELECT balance_amt AS plain_select FROM acct ...;</span><br>
+            <span class="t-arrow">➔ 300000.00</span> <span class="t-comment">-- 커밋됐으니 새 값</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================
+       SLIDE 10: 시나리오 4 - 올바른 출금 트랜잭션 완결 (이론)
+       ======================================================== -->
+  <div class="slide">
+    <div class="slide-title-group">
+      <h1 class="slide-title">2-3. [출금 완결] 판단 시점부터 배타락으로 완벽 격리</h1>
+      <p class="slide-subtitle">시나리오 4: SELECT FOR UPDATE를 통한 "조건 검증-잔액 차감-원장 기입" 동기화</p>
+    </div>
+    <div class="logic-grid">
+      <div class="logic-card">
+        <span class="card-label req">1. 업무 요구사항</span>
+        <div class="card-content">
+          <strong>완벽한 1명 승인 / 1명 거절</strong>
+          <p style="margin-top: 8px;">동시 70만 원 출금 시, B가 100만 원이라는 낡은 잔액을 보고 헛된 승인 판단을 내리지 않도록 판정 단계부터 대기시켜야 함.</p>
+        </div>
+      </div>
+      <div class="logic-card">
+        <span class="card-label mech">2. 처리 순서</span>
+        <div class="card-content">
+<pre class="code-box">BEGIN;
+-- ① 보는 순간 X락으로 계좌 잠금
+SELECT balance_amt INTO @bal FROM acct ... FOR UPDATE;
+
+-- ② 판단
+SELECT IF(@bal >= 700000, '승인', '거절 - 잔액 부족');
+
+-- ③-a 승인이면
+UPDATE acct SET balance_amt = balance_amt - 700000 ...;
+INSERT INTO acct_txn (…) VALUES (…);
+COMMIT;
+
+-- ③-b 거절이면
+ROLLBACK;</pre>
+          <div class="syntax-tip" style="margin-top: 6px;">터미널에서는 ②의 결과를 보고 사람이 ③-a / ③-b를 고릅니다. Java 단계에서는 이 분기를 <code>if</code> 문으로 구현합니다.</div>
+        </div>
+      </div>
+      <div class="logic-card">
+        <span class="card-label eff">3. 처리 효과</span>
+        <div class="card-content">
+          <ul>
+            <li>B는 A가 출금하고 커밋할 때까지 <code>SELECT ... FOR UPDATE</code>에서 대기.</li>
+            <li>A 커밋 후, B는 <strong>차감 완료된 실제 잔액(30만 원)</strong>을 안전하게 조회.</li>
+            <li>B는 시스템 에러 없이 비즈니스 로직에 의해 <strong>"잔액 부족 거절"</strong> 판정 후 롤백.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================
+       SLIDE 11: 시나리오 4 - 출금 완결 터미널 시뮬레이션
+       ======================================================== -->
+  <div class="slide">
+    <div class="slide-title-group">
+      <h1 class="slide-title">2-3-T. 시나리오 4 터미널 시뮬레이션 [04_withdraw_fixed.sql]</h1>
+      <p class="slide-subtitle">B가 잔액 조회 자체를 대기하고, A의 70만 원 출금 완료 후 30만 원을 보고 스스로 거절하는 흐름</p>
+    </div>
+    <div class="terminal-desktop">
+      <!-- 좌측 OBS 터미널 -->
+      <div class="term-col-left">
+        <div class="term-win" style="height: 100%;">
+          <div class="term-titlebar">
+            <span>🖥️ OBS terminal</span>
+            <div class="win-btns"><span>─</span><span>□</span><span>✕</span></div>
+          </div>
+          <div class="term-body">
+            <span class="t-step obs">[STEP 0] 초기화</span><br>
+            <span class="t-prompt">OBS&gt;</span> <span class="t-cmd">CALL lock_lab.reset();</span><br><br>
+
+            <span class="t-step obs">[STEP 3] 대기 상태 확인</span><br>
+            <span class="t-prompt">OBS&gt;</span> <span class="t-cmd">SELECT * FROM lock_lab.v_waits;</span><br>
+            <span class="t-comment">waiting: B ➔ blocked_by: A</span><br>
+            <span class="t-arrow">➔ B는 낡은 잔액을 볼 기회조차 차단됨!</span><br><br>
+
+            <span class="t-step obs">[STEP 6] 최종 결과 확인</span><br>
+            <span class="t-prompt">OBS&gt;</span> <span class="t-cmd">SELECT * FROM lock_lab.v_acct;</span><br>
+            <span class="t-comment">| item      | value    | note          |</span><br>
+            <span class="t-comment">| BALANCE   | 300,000  | NULL          |</span><br>
+            <span class="t-comment">| DEMO-S4-A | -700,000 | after 300,000 |</span><br><br>
+            <span class="t-arrow">✔ A 1건 승인, B 1건 거절! 잔액과 원장 완벽 일치</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- 우측 A/B 터미널 -->
+      <div class="term-col-right">
+        <!-- A 터미널 -->
+        <div class="term-win">
+          <div class="term-titlebar">
+            <span>👤 A terminal (승인 세션)</span>
+            <div class="win-btns"><span>─</span><span>□</span><span>✕</span></div>
+          </div>
+          <div class="term-body">
+            <span class="t-step">[STEP 1] 잠그며 읽기</span><br>
+            <span class="t-prompt">A&gt;</span> <span class="t-cmd">BEGIN;</span><br>
+            <span class="t-prompt">A&gt;</span> <span class="t-cmd">SELECT balance_amt INTO @bal FROM acct ... FOR UPDATE;</span><br>
+            <span class="t-comment">-- locked_balance: 1,000,000원 확인 (X락 독점)</span><br><br>
+
+            <span class="t-step">[STEP 4] 판단 ➔ 차감 ➔ 원장 기록 ➔ 커밋</span><br>
+            <span class="t-prompt">A&gt;</span> <span class="t-cmd">SELECT IF(@bal &gt;= 700000, '승인', '거절');</span> <span class="t-comment">-- '승인'</span><br>
+            <span class="t-prompt">A&gt;</span> <span class="t-cmd">UPDATE acct SET balance_amt = balance_amt - 700000;</span><br>
+            <span class="t-prompt">A&gt;</span> <span class="t-cmd">INSERT INTO acct_txn (…) VALUES ('DEMO-S4-A', ..., 'WDR', 700000, ...);</span><br>
+            <span class="t-prompt">A&gt;</span> <span class="t-cmd">COMMIT;</span> <span class="t-arrow">➔ A 종료, B 대기 해제!</span>
+          </div>
+        </div>
+
+        <!-- B 터미널 -->
+        <div class="term-win">
+          <div class="term-titlebar">
+            <span>👤 B terminal (거절 세션)</span>
+            <div class="win-btns"><span>─</span><span>□</span><span>✕</span></div>
+          </div>
+          <div class="term-body">
+            <span class="t-step flow">[STEP 2] 잠그며 읽기 시도 ➔ 대기</span><br>
+            <span class="t-prompt">B&gt;</span> <span class="t-cmd">BEGIN;</span><br>
+            <span class="t-prompt">B&gt;</span> <span class="t-cmd">SELECT balance_amt INTO @bal FROM acct ... FOR UPDATE;</span><br>
+            <span class="t-wait">... [커서 깜빡임: A 완료 때까지 읽는 것 자체를 멈춤] ...</span><br>
+            <span class="t-arrow">➔ [A 커밋 후 출력됨] locked_balance: 300,000.00</span><br><br>
+
+            <span class="t-step flow">[STEP 5] 정확한 최신 잔액으로 판단 ➔ 거절</span><br>
+            <span class="t-prompt">B&gt;</span> <span class="t-cmd">SELECT IF(@bal &gt;= 700000, '승인', '거절 - 잔액 부족');</span><br>
+            <span class="t-error">결과: '거절 - 잔액 부족'</span><br>
+            <span class="t-prompt">B&gt;</span> <span class="t-cmd">ROLLBACK;</span> <span class="t-comment">-- 에러 없이 안전하게 거래 종료</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========================================================
+       SLIDE 12: 종합 결론 - 락에 대한 관점의 대전환
+       ======================================================== -->
+  <div class="slide">
+    <div class="slide-title-group">
+      <h1 class="slide-title">3. 최종 결론: 락(Lock)에 대한 새로운 관점</h1>
+      <p class="slide-subtitle">같은 기능끼리의 경합과, 서로 다른 기능 사이의 간섭을 함께 다뤄야 한다</p>
+    </div>
+    <div class="logic-grid" style="grid-template-columns: 1fr 1fr; margin-top: 4px;">
+      <div class="logic-card">
+        <span class="card-label err">❌ 처음의 생각</span>
+        <div class="card-content">
+          <p><strong>"같은 기능이 동시에 실행될 때만 신경 쓰면 된다?"</strong></p>
+          <ul style="margin-top: 8px;">
+            <li>입금할 때 다른 입금이 오면 줄 세우기</li>
+            <li>출금할 때 다른 출금이 오면 줄 세우기</li>
+            <li>단순히 동일한 API가 중복 호출되는 상황만을 제어 대상으로 좁게 인식함.</li>
+          </ul>
+        </div>
+      </div>
+      <div class="logic-card" style="border: 2px solid var(--accent-blue);">
+        <span class="card-label eff">⭕ 실습에서 확인한 것</span>
+        <div class="card-content">
+          <p><strong>"한 거래 안의 단계 순서, 그리고 판단과 실행 사이의 틈"</strong></p>
+          <ul style="margin-top: 8px;">
+            <li><strong>같은 기능끼리도 단계 순서가 문제</strong>: 원장 INSERT가 FK 확인으로 잡는 S락과 잔액 UPDATE의 X락이 엇갈려 데드락 (시나리오 1 · 2)</li>
+            <li><strong>판단과 실행 사이의 틈</strong>: 잠그지 않고 읽은 잔액으로 판단하면 갱신 분실 (시나리오 3 · 4)</li>
+            <li><strong>다른 기능 사이</strong>: 화면 조회는 잠그지 않아도 되고, 판단용 조회만 잠그면 됨 (시나리오 5)</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <div class="callout" style="margin-top: 8px;">
+      💡 <strong>정리</strong>: 락은 계좌 잔액이라는 하나의 자원을 두고 <strong>조회 · 판단 · 기록 · 차감</strong>이 서로의 결과를 깨뜨리지 않도록 순서를 정하는 장치입니다. <strong>무엇을 잠글지(판단용 조회)와 무엇을 잠그지 않을지(화면 조회)를 구분하는 것</strong>까지가 설계입니다.
+    </div>
+  </div>
+
+  <!-- 하단 네비게이션 컨트롤러 -->
+  <div class="deck-footer">
+    <button class="btn" id="prevBtn" onclick="moveSlide(-1)">◀ 이전 (Prev)</button>
+    <div style="font-size: 0.92rem; color: var(--text-muted);">
+      키보드 방향키 [← / →] 또는 하단 버튼을 클릭하여 슬라이드를 이동하세요.
+    </div>
+    <button class="btn" id="nextBtn" onclick="moveSlide(1)">다음 (Next) ▶</button>
+  </div>
+</div>
+
+<script>
+  let currentSlide = 0;
+  const slides = document.querySelectorAll('.slide');
+  const slideIndicator = document.getElementById('slideIndicator');
+  const prevBtn = document.getElementById('prevBtn');
+  const nextBtn = document.getElementById('nextBtn');
+
+  function updateDeck() {
+    slides.forEach((s, idx) => {
+      s.classList.toggle('active', idx === currentSlide);
+    });
+    slideIndicator.textContent = `${currentSlide + 1} / ${slides.length}`;
+    prevBtn.disabled = currentSlide === 0;
+    nextBtn.disabled = currentSlide === slides.length - 1;
+  }
+
+  function moveSlide(direction) {
+    const target = currentSlide + direction;
+    if (target >= 0 && target < slides.length) {
+      currentSlide = target;
+      updateDeck();
+    }
+  }
+
+  window.addEventListener('keydown', (e) => {
+    if (e.key === 'ArrowRight' || e.key === 'PageDown') {
+      moveSlide(1);
+    } else if (e.key === 'ArrowLeft' || e.key === 'PageUp') {
+      moveSlide(-1);
+    }
+  });
+
+  updateDeck();
+</script>
+
+</body>
+</html>

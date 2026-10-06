@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>사망자 명의 금융거래 신속차단 시스템 — DB 설계</title>
+<meta name="description" content="금융위원회 사망자 명의 금융거래 신속차단 제도를 MySQL로 설계한 데이터베이스 교과목 팀 프로젝트. 시뮬레이터, 발표자료, 락 실습 보고서.">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* 레이아웃: 헤더 → 지표 스트립 → 산출물 카드 그리드 → 구조 설명 → 각주 */
+:root{
+  --bg:#f4f6f6; --surface:#ffffff; --surface-2:#eceff0; --surface-3:#e0e5e6;
+  --line:#ccd4d5; --line-strong:#9fadae;
+  --fg:#15201f; --fg-dim:#5c6b6a; --fg-faint:#859594;
+  --accent:#0f6f69; --accent-soft:#d9eceb; --accent-ink:#0a4f4a; --on-accent:#ffffff;
+  --core:#0f6f69; --ext:#7a4b9c; --chnl:#1f5fa8; --info:#8a5a06; --comm:#5c6b6a;
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  --sans:"IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0e1514; --surface:#161f1e; --surface-2:#1d2827; --surface-3:#253231;
+    --line:#2e3c3b; --line-strong:#4a5c5a;
+    --fg:#e4ecea; --fg-dim:#9fb0ae; --fg-faint:#71817f;
+    --accent:#4fb9b0; --accent-soft:#143634; --accent-ink:#7fd3cb; --on-accent:#07201e;
+    --core:#4fb9b0; --ext:#b391d6; --chnl:#6aa5e0; --info:#d8a93f; --comm:#9fb0ae;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0e1514; --surface:#161f1e; --surface-2:#1d2827; --surface-3:#253231;
+  --line:#2e3c3b; --line-strong:#4a5c5a;
+  --fg:#e4ecea; --fg-dim:#9fb0ae; --fg-faint:#71817f;
+  --accent:#4fb9b0; --accent-soft:#143634; --accent-ink:#7fd3cb; --on-accent:#07201e;
+  --core:#4fb9b0; --ext:#b391d6; --chnl:#6aa5e0; --info:#d8a93f; --comm:#9fb0ae;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{margin:0}
+body{background:var(--bg);color:var(--fg);font-family:var(--sans);
+  font-size:15px;line-height:1.7;-webkit-font-smoothing:antialiased}
+h1,h2,h3{margin:0;text-wrap:balance;font-weight:600;letter-spacing:-.02em}
+a{color:var(--accent);text-decoration-thickness:1px;text-underline-offset:2px}
+:focus-visible{outline:2px solid var(--accent);outline-offset:3px}
+.wrap{max-width:1060px;margin:0 auto;padding-inline:16px}
+
+/* ---------- 헤더 ---------- */
+header{border-bottom:1px solid var(--line);background:var(--surface)}
+.hd{padding-block:40px 32px}
+.eyebrow{font-family:var(--mono);font-size:12px;letter-spacing:.08em;
+  color:var(--accent);text-transform:uppercase;margin:0 0 10px}
+h1{font-size:clamp(25px,4.6vw,38px);line-height:1.25}
+.sub{color:var(--fg-dim);margin:12px 0 0;max-width:62ch}
+.meta{display:flex;gap:8px;flex-wrap:wrap;margin-top:20px;
+  font-family:var(--mono);font-size:12px;color:var(--fg-dim)}
+.meta span{background:var(--surface-2);border:1px solid var(--line);
+  border-radius:4px;padding:3px 9px}
+.themebtn{position:absolute;top:14px;right:16px;background:var(--surface-2);
+  color:var(--fg);border:1px solid var(--line);border-radius:6px;
+  padding:5px 10px;font-family:var(--sans);font-size:12px;cursor:pointer}
+header{position:relative}
+
+/* ---------- 지표 ---------- */
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(104px,1fr));
+  gap:1px;background:var(--line);border-block:1px solid var(--line)}
+.stat{background:var(--surface);padding:14px 16px}
+.stat b{display:block;font-family:var(--mono);font-size:23px;font-weight:600;
+  letter-spacing:-.02em;font-variant-numeric:tabular-nums}
+.stat span{font-size:11.5px;color:var(--fg-dim)}
+
+/* ---------- 섹션 ---------- */
+section{padding-block:40px}
+.sec-h{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:20px}
+.sec-h h2{font-size:19px}
+.sec-h p{margin:0;font-size:13px;color:var(--fg-dim)}
+
+/* ---------- 산출물 카드 ---------- */
+.cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(272px,1fr));gap:14px}
+.card{display:flex;flex-direction:column;background:var(--surface);
+  border:1px solid var(--line);border-radius:10px;padding:18px;
+  text-decoration:none;color:inherit;transition:.14s;min-width:0}
+.card:hover{border-color:var(--accent);transform:translateY(-2px);
+  box-shadow:0 6px 20px rgba(15,111,105,.10)}
+.card.feature{grid-column:span 2;background:var(--accent-soft);border-color:var(--accent)}
+@media (max-width:620px){.card.feature{grid-column:span 1}}
+.kind{font-family:var(--mono);font-size:10.5px;letter-spacing:.07em;
+  text-transform:uppercase;color:var(--accent);margin-bottom:8px}
+.card h3{font-size:16.5px;margin-bottom:7px}
+.card.feature h3{font-size:19px}
+.card p{margin:0;font-size:13.5px;color:var(--fg-dim);line-height:1.6}
+.card .go{margin-top:14px;font-size:13px;font-weight:600;color:var(--accent)}
+.tags{display:flex;gap:5px;flex-wrap:wrap;margin-top:12px}
+.tag{font-family:var(--mono);font-size:10.5px;background:var(--surface-2);
+  border:1px solid var(--line);border-radius:3px;padding:1px 6px;color:var(--fg-dim)}
+.card.feature .tag{background:var(--surface)}
+
+/* ---------- 계층 ---------- */
+.layers{display:grid;grid-template-columns:repeat(auto-fit,minmax(186px,1fr));gap:12px}
+.layer{border:1px solid var(--line);border-radius:8px;padding:14px;background:var(--surface);min-width:0}
+.layer .nm{display:flex;align-items:center;gap:7px;font-weight:600;font-size:14.5px}
+.dot{width:9px;height:9px;border-radius:50%;flex:none}
+.layer code{font-family:var(--mono);font-size:11.5px;color:var(--fg-faint);
+  display:block;margin:2px 0 7px}
+.layer p{margin:0;font-size:12.5px;color:var(--fg-dim);line-height:1.6}
+.layer .cnt{font-family:var(--mono);font-size:11px;color:var(--accent);
+  margin-top:8px;font-weight:600}
+
+/* ---------- 설계 포인트 ---------- */
+.points{display:grid;gap:10px}
+.point{display:grid;grid-template-columns:auto minmax(0,1fr);gap:14px;
+  background:var(--surface);border:1px solid var(--line);
+  border-left:3px solid var(--accent);border-radius:0 8px 8px 0;padding:13px 16px}
+.point .no{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--accent)}
+.point b{display:block;font-size:14px;margin-bottom:3px}
+.point p{margin:0;font-size:13px;color:var(--fg-dim);line-height:1.6}
+.point code{font-family:var(--mono);font-size:12px;background:var(--surface-2);
+  padding:1px 4px;border-radius:3px}
+
+/* ---------- 각주 ---------- */
+footer{border-top:1px solid var(--line);background:var(--surface);
+  padding-block:28px 40px;font-size:13px;color:var(--fg-dim)}
+footer p{margin:0 0 8px}
+footer code{font-family:var(--mono);font-size:12px;background:var(--surface-2);
+  padding:1px 4px;border-radius:3px}
+.files{display:flex;gap:7px;flex-wrap:wrap;margin-top:12px;font-family:var(--mono);font-size:12px}
+.files a{background:var(--surface-2);border:1px solid var(--line);border-radius:4px;
+  padding:3px 9px;text-decoration:none}
+.files a:hover{border-color:var(--accent)}
+@media (prefers-reduced-motion:reduce){*{transition-duration:.01ms!important}}
+</style>
+</head>
+<body>
+
+<header>
+  <button class="themebtn" id="themebtn" type="button">다크/라이트</button>
+  <div class="wrap hd">
+    <p class="eyebrow">데이터베이스 교과목 팀 프로젝트 · 2인 (Doo-Lee)</p>
+    <h1>사망자 명의 금융거래<br>신속차단 시스템 데이터베이스</h1>
+    <p class="sub">
+      금융위원회가 2026년 9월 11일 시행한 제도를 은행 시스템 구조대로 MySQL에 설계했다.
+      "사망신고 다음 날부터 입금 등 필수 거래를 제외한 모든 거래를 차단한다"는 정책을
+      애플리케이션 코드가 아니라 <strong>제약조건과 테이블</strong>로 표현하는 것이 이 설계의 목표다.
+    </p>
+    <div class="meta">
+      <span>MySQL 8.0</span>
+      <span>5 schemas</span>
+      <span>Java 17 / JDBC</span>
+      <span>HikariCP</span>
+      <span>InnoDB</span>
+    </div>
+  </div>
+</header>
+
+<div class="stats wrap" style="max-width:1060px">
+  <div class="stat"><b>30</b><span>테이블</span></div>
+  <div class="stat"><b>321</b><span>컬럼</span></div>
+  <div class="stat"><b>68</b><span>외래키</span></div>
+  <div class="stat"><b>42</b><span>CHECK</span></div>
+  <div class="stat"><b>17</b><span>UNIQUE</span></div>
+  <div class="stat"><b>24</b><span>코드그룹</span></div>
+  <div class="stat"><b>88</b><span>코드값</span></div>
+</div>
+
+<div class="wrap">
+
+<section>
+  <div class="sec-h">
+    <h2>산출물</h2>
+    <p>브라우저에서 바로 열립니다</p>
+  </div>
+  <div class="cards">
+
+    <a class="card feature" href="simulator.html">
+      <div class="kind">Interactive</div>
+      <h3>운영 콘솔 시뮬레이터</h3>
+      <p>
+        거래를 전송하면 계정계·채널계·정보계를 오가며 실행되는 SQL이 9단계로 재생된다.
+        상단의 시스템 일시를 바꿔 <strong>차단개시 경계값</strong>(신고일 23:59:59 vs 다음날 00:00:00)을
+        직접 확인할 수 있고, <code>FOR UPDATE</code>를 끈 상태로 동시 출금을 돌려
+        갱신 손실을 재현해 볼 수 있다. DB 없이 동작한다.
+      </p>
+      <div class="tags">
+        <span class="tag">처리 파이프라인</span><span class="tag">DB 상태 뷰어</span>
+        <span class="tag">사망정보 수신 배치</span><span class="tag">동시성 실험실</span>
+        <span class="tag">용어 12개</span>
+      </div>
+      <div class="go">열기 →</div>
+    </a>
+
+    <a class="card" href="presentation.html">
+      <div class="kind">Slides</div>
+      <h3>발표 자료</h3>
+      <p>
+        31장. 용어 팝업 65개와 전체 ERD 탐색기가 들어 있다.
+        테이블을 클릭하면 각 컬럼이 왜 존재하는지, 외래키가 어디서 왔는지 확인할 수 있다.
+      </p>
+      <div class="tags"><span class="tag">E 키 → ERD 탐색기</span></div>
+      <div class="go">열기 →</div>
+    </a>
+
+    <a class="card" href="lock-lab-report.html">
+      <div class="kind">Report</div>
+      <h3>락 · 데드락 실습 보고서</h3>
+      <p>
+        터미널 4개로 재현한 결과. 외래키 INSERT가 부모 행에 공유 락을 걸어
+        <code>ERROR 1213</code>이 나는 경로와, <code>FOR UPDATE</code>로 막는 과정을 단계별로 담았다.
+      </p>
+      <div class="tags">
+        <span class="tag">데드락</span><span class="tag">갱신 손실</span><span class="tag">MVCC</span>
+      </div>
+      <div class="go">열기 →</div>
+    </a>
+
+    <a class="card" href="erd-overview.png">
+      <div class="kind">Diagram</div>
+      <h3>전체 ERD</h3>
+      <p>5개 스키마 30개 테이블과 관계선 전체. 계정계만 따로 본 <a href="erd-core.png">핵심 ERD</a>도 있다.</p>
+      <div class="go">이미지 보기 →</div>
+    </a>
+
+    <a class="card" href="https://github.com/Doo-Lee01/deceased-account-block-db#readme">
+      <div class="kind">Document</div>
+      <h3>설계 의사결정 보고서</h3>
+      <p>
+        왜 그렇게 설계했는지를 8개 항목으로 정리했다. 복합 외래키, 이력 관리,
+        의도적 반정규화, 파티셔닝을 포기한 이유까지.
+      </p>
+      <div class="go">GitHub에서 보기 →</div>
+    </a>
+
+    <a class="card" href="https://github.com/Doo-Lee01/deceased-account-block-db/tree/main/java">
+      <div class="kind">Code</div>
+      <h3>Java 구현 가이드</h3>
+      <p>
+        JDBC + HikariCP로 판정 로직을 구현한 콘솔 애플리케이션.
+        계층 구조, 예외 설계, 트랜잭션과 데드락 재시도를 다룬다.
+      </p>
+      <div class="tags">
+        <span class="tag">repository / service</span><span class="tag">예외 3계층</span>
+        <span class="tag">커넥션 풀</span>
+      </div>
+      <div class="go">GitHub에서 보기 →</div>
+    </a>
+
+  </div>
+</section>
+
+<section>
+  <div class="sec-h">
+    <h2>스키마 구성</h2>
+    <p>은행 시스템의 계층 구분을 데이터베이스 경계로 옮겼다</p>
+  </div>
+  <div class="layers">
+    <div class="layer">
+      <div class="nm"><span class="dot" style="background:var(--core)"></span>계정계</div>
+      <code>core_bank</code>
+      <p>고객·계좌·거래원장·사망차단·차단규칙. 돈이 실제로 움직이는 곳이다.</p>
+      <div class="cnt">15 tables</div>
+    </div>
+    <div class="layer">
+      <div class="nm"><span class="dot" style="background:var(--ext)"></span>대외계</div>
+      <code>ext_link</code>
+      <p>행정안전부 사망자 정보 파일 수신과 고객 매칭. 주민번호는 해시로만 맞춘다.</p>
+      <div class="cnt">3 tables</div>
+    </div>
+    <div class="layer">
+      <div class="nm"><span class="dot" style="background:var(--chnl)"></span>채널계</div>
+      <code>channel</code>
+      <p>창구·ATM·앱에서 들어온 요청과 판정 결과, 응답. 거절된 요청도 남는다.</p>
+      <div class="cnt">3 tables</div>
+    </div>
+    <div class="layer">
+      <div class="nm"><span class="dot" style="background:var(--info)"></span>정보계</div>
+      <code>info_mart</code>
+      <p>사망정보 조회 감사기록과 집계. 개인식별정보를 보관하지 않는다.</p>
+      <div class="cnt">4 tables</div>
+    </div>
+    <div class="layer">
+      <div class="nm"><span class="dot" style="background:var(--comm)"></span>공통</div>
+      <code>comm_code</code>
+      <p>코드값·응답코드·기관코드·영업일. 모든 스키마가 여기를 참조한다.</p>
+      <div class="cnt">5 tables</div>
+    </div>
+  </div>
+</section>
+
+<section>
+  <div class="sec-h">
+    <h2>설계에서 가장 공들인 지점</h2>
+    <p>자세한 근거는 설계 의사결정 보고서에</p>
+  </div>
+  <div class="points">
+    <div class="point"><span class="no">01</span><div>
+      <b>차단개시일시를 애플리케이션이 계산하지 않는다</b>
+      <p>
+        <code>CHECK (block_start_dtm = TIMESTAMP(DATE_ADD(death_report_dt, INTERVAL 1 DAY)))</code>
+        로 DB가 보장한다. 자바에서 한 번 더 계산하면 두 곳이 언젠가 어긋난다.
+      </p>
+    </div></div>
+    <div class="point"><span class="no">02</span><div>
+      <b>정책을 if문이 아니라 테이블 행으로</b>
+      <p>
+        거래유형별 허용·차단을 <code>block_rule</code>이 보관하고
+        <code>apply_from_dt ~ apply_to_dt</code>로 버전을 관리한다.
+        정책이 바뀌어도 과거 거래는 그때의 규칙으로 판정된다.
+      </p>
+    </div></div>
+    <div class="point"><span class="no">03</span><div>
+      <b>코드값이 올바른 그룹의 코드인지까지 검사</b>
+      <p>
+        생성 컬럼(<code>GENERATED ALWAYS AS ('CUST_ST') STORED</code>)을 만들어
+        <code>(그룹, 코드)</code> 복합 외래키를 건다. 존재하지 않는 코드도,
+        다른 그룹의 코드도 들어오지 못한다. 이런 컬럼이 35개다.
+      </p>
+    </div></div>
+    <div class="point"><span class="no">04</span><div>
+      <b>주민등록번호 평문을 저장하지 않는다</b>
+      <p>
+        검색용 <code>rrn_hash CHAR(64)</code>와 암호문 <code>rrn_enc VARBINARY(128)</code>만 둔다.
+        해시 형식도 <code>CHECK (rrn_hash REGEXP '^[0-9a-f]{64}$')</code>로 강제한다.
+      </p>
+    </div></div>
+    <div class="point"><span class="no">05</span><div>
+      <b>파티셔닝을 포기하고 참조 무결성을 택했다</b>
+      <p>
+        InnoDB는 파티션과 외래키를 함께 쓸 수 없다(<code>ERROR 1506</code>).
+        금융 데이터에서는 무결성이 먼저라고 보고, 대신 아카이브 테이블로 분리하는 방식을 택했다.
+      </p>
+    </div></div>
+    <div class="point"><span class="no">06</span><div>
+      <b>거절된 거래도 흔적을 남긴다</b>
+      <p>
+        계정계 트랜잭션이 <code>ROLLBACK</code>되어도 채널계 로그는 남아야 한다.
+        그래서 업무 트랜잭션과 로그 트랜잭션을 분리했다.
+      </p>
+    </div></div>
+  </div>
+</section>
+
+</div>
+
+<footer><div class="wrap">
+  <p>
+    <strong>팀 구성</strong> — DB 설계·구현, 발표 자료 / 법령 조사 및 제도 정리 (이서현)
+  </p>
+  <p>
+    <strong>근거 법령</strong> — 가족관계등록법 제84·85조, 민법 제997·1000~1004조,
+    전자금융거래법 제22조, 개인정보보호법 제24조의2, 신용정보법 제20조의2, 금융실명법 제3·4조
+  </p>
+  <p>
+    이 페이지는 GitHub Pages로 서비스되며, 저장소의 <code>docs/</code> 폴더가 그대로 올라간 것이다.
+  </p>
+  <div class="files">
+    <a href="https://github.com/Doo-Lee01/deceased-account-block-db">저장소</a>
+    <a href="logical-erd.drawio">logical-erd.drawio</a>
+    <a href="conceptual-erd.drawio">conceptual-erd.drawio</a>
+    <a href="https://github.com/Doo-Lee01/deceased-account-block-db/blob/main/schema.sql">schema.sql</a>
+    <a href="https://github.com/Doo-Lee01/deceased-account-block-db/blob/main/seed_data.sql">seed_data.sql</a>
+    <a href="https://github.com/Doo-Lee01/deceased-account-block-db/blob/main/validation_queries.sql">validation_queries.sql</a>
+    <a href="https://github.com/Doo-Lee01/deceased-account-block-db/tree/main/concurrency">concurrency/</a>
+  </div>
+</div></footer>
+
+<script>
+document.getElementById('themebtn').addEventListener('click', function () {
+  var cur = document.documentElement.getAttribute('data-theme');
+  var dark = cur ? cur === 'dark'
+                 : window.matchMedia('(prefers-color-scheme: dark)').matches;
+  document.documentElement.setAttribute('data-theme', dark ? 'light' : 'dark');
+});
+</script>
+</body>
+</html>

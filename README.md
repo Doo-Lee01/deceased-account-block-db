@@ -11,9 +11,11 @@ MySQL 8.0.46 · InnoDB · utf8mb4
 14 Business Scenarios · 12 Constraint Tests
 ```
 
-| [📊 발표 자료](https://Doo-Lee01.github.io/deceased-account-block-db/presentation.html) | [✏️ 법령 검토 노션](https://rhinestone-crafter-09e.notion.site/HOME-3dd49d7e6ffa805db933ff0284e0e2db?source=copy_link) | [📝 개발 기록](https://lxvxxu.tistory.com/210) |
-|---|---|---|
-| 슬라이드 31장 · 용어 팝업 65개 · ERD 탐색기 | 조문 원문과 검토 과정 | 주차별 학습일지 |
+| [🖥 시뮬레이터](https://Doo-Lee01.github.io/deceased-account-block-db/simulator.html) | [📊 발표 자료](https://Doo-Lee01.github.io/deceased-account-block-db/presentation.html) | [✏️ 법령 검토 노션](https://rhinestone-crafter-09e.notion.site/HOME-3dd49d7e6ffa805db933ff0284e0e2db?source=copy_link) | [📝 개발 기록](https://lxvxxu.tistory.com/210) |
+|---|---|---|---|
+| 거래 전송 → 실행 SQL 9단계 재생 | 슬라이드 31장 · 용어 팝업 65개 · ERD 탐색기 | 조문 원문과 검토 과정 | 주차별 학습일지 |
+
+> 산출물 전체는 [프로젝트 허브](https://Doo-Lee01.github.io/deceased-account-block-db/)에서 한 번에 볼 수 있습니다.
 
 ![전체 ERD](docs/erd-overview.png)
 
@@ -593,7 +595,12 @@ mysql -u root -p --force < constraint_tests.sql
 ├─ validation_queries.sql     업무 검증 쿼리 14종
 ├─ constraint_tests.sql       제약조건 위반 테스트 12종 (--force 필요)
 ├─ concurrency/               락 · 데드락 시연 5종 (A · B · OBS 터미널)
-└─ docs/
+├─ java/                      Java 구현 — JDBC · HikariCP 콘솔 애플리케이션
+│   ├─ README.md              구현 가이드
+│   └─ deceased-block-app/    Maven 프로젝트 (소스 31개)
+└─ docs/                      GitHub Pages 서비스 폴더
+    ├─ index.html             산출물 허브 (Pages 첫 화면)
+    ├─ simulator.html         운영 콘솔 시뮬레이터
     ├─ erd-overview.png       전체 ERD 이미지
     ├─ conceptual-erd.drawio  개념 ERD
     ├─ logical-erd.drawio     논리 ERD — 7개 탭
@@ -610,7 +617,7 @@ mysql -u root -p --force < constraint_tests.sql
 | 컬럼 정의 | 321개 컬럼의 자료형 · NULL · 키 · FK 참조 · 설명 |
 | 제약조건 | PK/UNIQUE/FK/CHECK 전체 목록과 정의식 |
 | 인덱스 | 인덱스 목록과 구성 컬럼 |
-| 공통코드 | 그룹 24개와 코드값 79개 |
+| 공통코드 | 그룹 24개와 코드값 88개 |
 | 표준 도메인 | 자료형 선택 기준과 명명 규칙 |
 
 ### docs/presentation.html
@@ -627,6 +634,35 @@ mysql -u root -p --force < constraint_tests.sql
 
 점선 밑줄이 있는 용어를 클릭하면 상세 설명이 열립니다(65개).
 
+### docs/simulator.html
+
+[온라인에서 바로 보기](https://Doo-Lee01.github.io/deceased-account-block-db/simulator.html) · DB 없이 브라우저 안에서 동작합니다.
+
+거래를 전송하면 계정계 · 채널계 · 정보계를 오가며 실행되는 SQL이 9단계로 재생됩니다.
+표시되는 문장은 `java/` 의 저장소 계층이 실제로 실행하는 SQL과 같습니다.
+
+| 탭 | 내용 |
+|---|---|
+| 거래 시뮬레이터 | 채널 단말 → 처리 파이프라인 → DB 상태 뷰어. 시스템 일시를 바꿔 **차단개시 경계값**(신고일 23:59:59 vs 다음날 00:00:00)을 확인 |
+| 사망정보 수신 배치 | 파일 수신 → 해시 매칭 → 차단 생성. 동명이인 다건매칭 보류까지 |
+| 동시성 실험실 | `FOR UPDATE`를 끈 상태로 동시 출금을 돌려 **갱신 손실**을 재현 |
+
+시연 시나리오 버튼 7개가 입력값을 미리 채워 줍니다. 용어 12개는 클릭하면 설명이 열립니다.
+
+### java/
+
+판정 로직을 Java 서비스 계층으로 옮긴 콘솔 애플리케이션입니다.
+프레임워크 없이 **순수 JDBC + HikariCP**로만 구성했습니다.
+
+| 계층 | 책임 |
+|---|---|
+| `repository/` | SQL. 인터페이스와 JDBC 구현을 분리 |
+| `service/` | 판정 흐름, 트랜잭션 경계, 채널 로그 |
+| `support/` | 커넥션 풀, 트랜잭션 템플릿, 예외 3계층 |
+
+`SELECT … FOR UPDATE` 선행과 `ERROR 1213` 자동 재시도가 들어 있습니다.
+자세한 내용은 [`java/README.md`](java/README.md)에 있습니다.
+
 ---
 
 ## 10. 한계와 다음 단계
@@ -641,14 +677,17 @@ mysql -u root -p --force < constraint_tests.sql
 
 ### 동시성
 
-스키마 설계 범위라 트랜잭션 제어는 구현하지 않았습니다. 다만 동시 거래에서 생기는 문제를 재현하고 해결 순서를 검증해 [`concurrency/`](concurrency/)에 정리했습니다. 원리와 터미널 흐름은 [실습 보고서](https://Doo-Lee01.github.io/deceased-account-block-db/lock-lab-report.html)에서 슬라이드로 볼 수 있습니다.
+동시 거래에서 생기는 문제를 재현하고 해결 순서를 검증해 [`concurrency/`](concurrency/)에 정리했습니다. 원리와 터미널 흐름은 [실습 보고서](https://Doo-Lee01.github.io/deceased-account-block-db/lock-lab-report.html)에서 슬라이드로 볼 수 있습니다.
+
+트랜잭션 제어는 스키마가 아니라 애플리케이션의 책임이므로 [`java/`](java/)에서 구현했습니다. `TxTemplate`이 트랜잭션 경계와 데드락 재시도를 담당하고, 잔액을 바꾸는 모든 경로가 `SELECT … FOR UPDATE`로 시작합니다.
 
 `acct_txn.acct_no`의 FK는 원장 기록 시 계좌 행에 공유락을 겁니다. 그래서 "원장 기록 → 잔액 변경" 순서로 두 거래가 같은 계좌를 처리하면 데드락이 납니다. 계좌를 `SELECT … FOR UPDATE`로 먼저 잠그면 해소되고, 이때도 일반 조회는 기다리지 않습니다. 이 해결은 트랜잭션 작성 방식의 문제라 `schema.sql`은 바꾸지 않았습니다.
 
 ### 다음 단계
 
+- ~~판정 로직을 Java 서비스 계층으로 이관 — `FOR UPDATE`와 데드락 재시도 포함~~ → [`java/`](java/)에서 완료
 - 배치 프로시저 — 사망정보 매칭에서 차단 생성까지
-- 판정 로직을 Java 서비스 계층으로 이관 — `FOR UPDATE`와 데드락 재시도 포함
+- 예외 인출 흐름 구현 — `exc_request` → `exc_approval` → `exc_payout`
 - 로그 보존기간 확정과 아카이브 이관 설계
 
-판정 로직을 프로시저에 몰아넣지 않았습니다. 규칙은 테이블에 두고 조합과 분기는 서비스 계층에 두는 구조라, Java로 옮길 때 DB 쪽을 거의 건드리지 않아도 됩니다.
+판정 로직을 프로시저에 몰아넣지 않았습니다. 규칙은 테이블에 두고 조합과 분기는 서비스 계층에 두는 구조라, Java로 옮기면서 `schema.sql`은 한 줄도 바꾸지 않았습니다.

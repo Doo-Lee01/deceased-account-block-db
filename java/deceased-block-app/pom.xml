@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>kr.doolee</groupId>
+  <artifactId>deceased-block-app</artifactId>
+  <version>1.0.0</version>
+  <packaging>jar</packaging>
+  <name>deceased-account-block-app</name>
+
+  <properties>
+    <maven.compiler.release>17</maven.compiler.release>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+  </properties>
+
+  <dependencies>
+    <!-- MySQL JDBC 드라이버. 이 한 줄이 Connector/J jar 수동 다운로드를 대신한다. -->
+    <dependency>
+      <groupId>com.mysql</groupId>
+      <artifactId>mysql-connector-j</artifactId>
+      <version>8.4.0</version>
+    </dependency>
+
+    <!--
+      커넥션 풀. 커넥션을 미리 만들어 두고 빌려 주는 역할을 한다.
+      Spring Boot 의 기본 커넥션 풀도 이것이다.
+    -->
+    <dependency>
+      <groupId>com.zaxxer</groupId>
+      <artifactId>HikariCP</artifactId>
+      <version>5.1.0</version>
+    </dependency>
+
+    <!--
+      HikariCP 는 로그를 SLF4J 로 남긴다. SLF4J 는 '로그 규격'일 뿐이라
+      실제로 출력할 구현체를 하나 넣어 줘야 한다. 없으면 로그가 전부 사라진다.
+      slf4j-simple 은 콘솔에 바로 찍어 주는 가장 단순한 구현체다.
+      로그가 시끄러우면 실행 옵션으로 줄인다:
+        -Dorg.slf4j.simpleLogger.defaultLogLevel=warn
+    -->
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-simple</artifactId>
+      <version>2.0.13</version>
+    </dependency>
+  </dependencies>
+</project>

@@ -1,0 +1,5 @@
+# 이 파일을 복사해서 db.properties 로 만들고 비밀번호를 채운다.
+# db.properties 는 .gitignore 에 넣어 절대 커밋하지 않는다.
+db.url=jdbc:mysql://localhost:3306/core_bank?serverTimezone=Asia/Seoul&characterEncoding=utf8&allowPublicKeyRetrieval=true&useSSL=false
+db.user=root
+db.password=YOUR_PASSWORD

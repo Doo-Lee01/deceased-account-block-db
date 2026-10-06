@@ -1,0 +1,1129 @@
+<title>사망자 거래차단 운영 콘솔</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Sans+KR:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap">
+<style>
+/* 레이아웃: 3단 운영 콘솔 — 채널 단말 | 처리 파이프라인 | DB 상태. 좁은 화면에서는 1단으로 쌓인다. */
+:root{
+  --bg:#f4f6f6; --surface:#ffffff; --surface-2:#eceff0; --surface-3:#e0e5e6;
+  --line:#ccd4d5; --line-strong:#9fadae;
+  --fg:#15201f; --fg-dim:#5c6b6a; --fg-faint:#859594;
+  --on-accent:#ffffff;
+  --accent:#0f6f69; --accent-soft:#d9eceb; --accent-ink:#0a4f4a;
+  --ok:#1b7a3f; --ok-soft:#dcefe2;
+  --warn:#8a5a06; --warn-soft:#faeed3;
+  --crit:#a3231f; --crit-soft:#fadedd;
+  --core:#0f6f69; --ext:#7a4b9c; --chnl:#1f5fa8; --info:#8a5a06; --comm:#5c6b6a;
+  --mono:"IBM Plex Mono",ui-monospace,SFMono-Regular,Menlo,monospace;
+  --sans:"IBM Plex Sans KR","Apple SD Gothic Neo","Malgun Gothic",system-ui,sans-serif;
+  --r:6px;
+  color-scheme:light;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0e1514; --surface:#161f1e; --surface-2:#1d2827; --surface-3:#253231;
+    --line:#2e3c3b; --line-strong:#4a5c5a;
+    --fg:#e4ecea; --fg-dim:#9fb0ae; --fg-faint:#71817f; --on-accent:#07201e;
+    --accent:#4fb9b0; --accent-soft:#143634; --accent-ink:#7fd3cb;
+    --ok:#5fc47f; --ok-soft:#14301d;
+    --warn:#d8a93f; --warn-soft:#332710;
+    --crit:#e8736d; --crit-soft:#3a1615;
+    --core:#4fb9b0; --ext:#b391d6; --chnl:#6aa5e0; --info:#d8a93f; --comm:#9fb0ae;
+    color-scheme:dark;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0e1514; --surface:#161f1e; --surface-2:#1d2827; --surface-3:#253231;
+  --line:#2e3c3b; --line-strong:#4a5c5a;
+  --fg:#e4ecea; --fg-dim:#9fb0ae; --fg-faint:#71817f; --on-accent:#07201e;
+  --accent:#4fb9b0; --accent-soft:#143634; --accent-ink:#7fd3cb;
+  --ok:#5fc47f; --ok-soft:#14301d;
+  --warn:#d8a93f; --warn-soft:#332710;
+  --crit:#e8736d; --crit-soft:#3a1615;
+  --core:#4fb9b0; --ext:#b391d6; --chnl:#6aa5e0; --info:#d8a93f; --comm:#9fb0ae;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--fg);font-family:var(--sans);margin:0;
+  font-size:14px;line-height:1.6;-webkit-font-smoothing:antialiased}
+h1,h2,h3{margin:0;text-wrap:balance;font-weight:600;letter-spacing:-.01em}
+button{font-family:inherit;font-size:inherit;cursor:pointer}
+input,select{font-family:inherit;font-size:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+.wrap{max-width:1500px;margin:0 auto;padding-inline:16px;padding-block:0 48px}
+
+/* ---------- 상단 바 ---------- */
+.topbar{position:sticky;top:env(safe-area-inset-top,0px);z-index:40;
+  background:var(--surface);border-bottom:1px solid var(--line);
+  padding-block:10px;margin-bottom:18px}
+.topbar-in{max-width:1500px;margin:0 auto;padding-inline:16px;
+  display:flex;flex-wrap:wrap;gap:12px;align-items:center}
+.brand{display:flex;flex-direction:column;gap:1px;margin-right:auto;min-width:0}
+.brand b{font-size:15px;font-weight:700}
+.brand span{font-size:11.5px;color:var(--fg-dim);font-family:var(--mono)}
+.clock{display:flex;align-items:center;gap:8px;background:var(--surface-2);
+  border:1px solid var(--line);border-radius:var(--r);padding:5px 9px}
+.clock label{font-size:11px;color:var(--fg-dim);white-space:nowrap}
+.clock input{background:var(--surface);color:var(--fg);border:1px solid var(--line);
+  border-radius:4px;padding:3px 5px;font-family:var(--mono);font-size:12px}
+.btn{background:var(--surface-2);color:var(--fg);border:1px solid var(--line);
+  border-radius:var(--r);padding:6px 12px;font-weight:500;transition:.12s}
+.btn:hover{background:var(--surface-3);border-color:var(--line-strong)}
+.btn-primary{background:var(--accent);border-color:var(--accent);
+  color:var(--on-accent);font-weight:600}
+.btn-primary:hover{filter:brightness(1.08);background:var(--accent)}
+.btn:disabled{opacity:.45;cursor:not-allowed}
+.btn-sm{padding:3px 8px;font-size:12px}
+
+/* ---------- 탭 ---------- */
+.tabs{display:flex;gap:4px;flex-wrap:wrap;margin-bottom:14px;border-bottom:1px solid var(--line)}
+.tab{background:none;border:none;border-bottom:2px solid transparent;padding:8px 13px;
+  color:var(--fg-dim);font-weight:500;margin-bottom:-1px}
+.tab[aria-selected="true"]{color:var(--accent);border-bottom-color:var(--accent);font-weight:600}
+
+/* ---------- 패널 공통 ---------- */
+.grid3{display:grid;grid-template-columns:300px minmax(0,1fr) 340px;gap:14px;align-items:start}
+@media (max-width:1180px){
+  .grid3{grid-template-columns:280px minmax(0,1fr)}
+  #dbCard{grid-column:1/-1;position:static!important}
+}
+@media (max-width:860px){.grid3{grid-template-columns:1fr}}
+.card{background:var(--surface);border:1px solid var(--line);border-radius:8px;overflow:hidden;min-width:0}
+.card-h{display:flex;align-items:center;gap:8px;padding:9px 12px;
+  border-bottom:1px solid var(--line);background:var(--surface-2)}
+.card-h h3{font-size:12.5px;letter-spacing:.02em}
+.card-h .n{margin-left:auto;font-family:var(--mono);font-size:11px;color:var(--fg-faint)}
+.card-b{padding:12px}
+.note{font-size:12px;color:var(--fg-dim);line-height:1.55}
+.note b{color:var(--fg);font-weight:600}
+
+/* ---------- 폼 ---------- */
+.field{margin-bottom:11px}
+.field label{display:block;font-size:11px;font-weight:600;color:var(--fg-dim);
+  letter-spacing:.04em;margin-bottom:4px;text-transform:uppercase}
+.field select,.field input[type=text]{width:100%;background:var(--surface-2);color:var(--fg);
+  border:1px solid var(--line);border-radius:var(--r);padding:7px 8px}
+.field input[type=text]{font-family:var(--mono);text-align:right}
+.chips{display:flex;gap:5px;flex-wrap:wrap}
+.chip{background:var(--surface-2);border:1px solid var(--line);border-radius:999px;
+  padding:4px 10px;font-size:12px;color:var(--fg-dim)}
+.chip[aria-pressed="true"]{background:var(--accent-soft);border-color:var(--accent);
+  color:var(--accent-ink);font-weight:600}
+
+/* ---------- 스키마 뱃지 ---------- */
+.badge{display:inline-flex;align-items:center;font-family:var(--sans);font-size:10px;
+  font-weight:700;letter-spacing:.04em;padding:1px 5px;border-radius:3px;
+  border:1px solid currentColor;white-space:nowrap;flex:none}
+.b-core{color:var(--core)} .b-ext{color:var(--ext)} .b-chnl{color:var(--chnl)}
+.b-info{color:var(--info)} .b-comm{color:var(--comm)}
+.b-svc{color:var(--crit)}
+
+/* ---------- 파이프라인 ---------- */
+.steps{display:flex;flex-direction:column;gap:0}
+.step{display:grid;grid-template-columns:26px minmax(0,1fr);gap:10px;
+  padding:0 0 2px;opacity:.3;transition:opacity .25s}
+.step.on{opacity:1}
+.step-rail{display:flex;flex-direction:column;align-items:center;gap:3px}
+.step-dot{width:20px;height:20px;border-radius:50%;background:var(--surface-3);
+  border:1px solid var(--line-strong);display:grid;place-items:center;
+  font-family:var(--mono);font-size:10px;font-weight:600;color:var(--fg-dim);flex:none}
+.step.on .step-dot{background:var(--accent);border-color:var(--accent);color:var(--on-accent)}
+.step.skip .step-dot{background:var(--surface-2);color:var(--fg-faint);border-style:dashed}
+.step-line{flex:1;width:1px;background:var(--line);min-height:8px}
+.step:last-child .step-line{display:none}
+.step-body{padding-bottom:12px;min-width:0}
+.step-t{display:flex;align-items:center;gap:7px;flex-wrap:wrap;font-size:13px;font-weight:600}
+.step-t .ms{margin-left:auto;font-family:var(--mono);font-size:10.5px;color:var(--fg-faint);font-weight:400}
+.step-why{font-size:11.5px;color:var(--fg-dim);margin-top:2px}
+pre.sql{margin:6px 0 0;background:var(--surface-2);border:1px solid var(--line);
+  border-left:2px solid var(--accent);border-radius:0 var(--r) var(--r) 0;
+  padding:7px 9px;overflow-x:auto;font-family:var(--mono);font-size:11.5px;
+  line-height:1.55;white-space:pre}
+pre.sql .k{color:var(--accent);font-weight:600}
+pre.sql .s{color:var(--ok)}
+pre.sql .c{color:var(--fg-faint);font-style:italic}
+.res{margin-top:5px;font-family:var(--mono);font-size:11px;color:var(--fg-dim)}
+.res b{color:var(--fg)}
+.step.skip .step-t{color:var(--fg-faint)}
+
+/* ---------- 판정 결과 ---------- */
+.verdict{border-radius:8px;border:1px solid;padding:12px 14px;margin-bottom:12px}
+.v-allow{background:var(--ok-soft);border-color:var(--ok)}
+.v-block{background:var(--crit-soft);border-color:var(--crit)}
+.v-exc{background:var(--warn-soft);border-color:var(--warn)}
+.v-idle{background:var(--surface-2);border-color:var(--line);border-style:dashed}
+.v-top{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap}
+.v-top strong{font-size:19px;letter-spacing:-.02em}
+.v-allow .v-top strong{color:var(--ok)} .v-block .v-top strong{color:var(--crit)}
+.v-exc .v-top strong{color:var(--warn)}
+.v-code{font-family:var(--mono);font-size:12px;font-weight:600;background:var(--surface);
+  border:1px solid var(--line);border-radius:4px;padding:1px 6px}
+.v-msg{font-size:13px;margin-top:5px}
+.v-meta{display:flex;gap:16px;flex-wrap:wrap;margin-top:9px;
+  font-size:11.5px;font-family:var(--mono);color:var(--fg-dim)}
+.v-meta b{color:var(--fg);font-weight:600}
+
+/* ---------- 전문 ---------- */
+.msgpair{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media (max-width:620px){.msgpair{grid-template-columns:1fr}}
+.msg{background:var(--surface-2);border:1px solid var(--line);border-radius:var(--r);
+  padding:8px 10px;font-family:var(--mono);font-size:11px;line-height:1.65;
+  overflow-x:auto;white-space:pre;min-width:0}
+.msg-h{font-family:var(--sans);font-size:10px;font-weight:700;letter-spacing:.06em;
+  color:var(--fg-faint);margin-bottom:4px;white-space:normal}
+
+/* ---------- 테이블 ---------- */
+.tabs-sm{display:flex;gap:3px;flex-wrap:wrap;padding:8px 10px 0}
+.tab-sm{background:var(--surface-2);border:1px solid var(--line);border-radius:4px 4px 0 0;
+  padding:4px 8px;font-size:11.5px;color:var(--fg-dim);border-bottom-color:transparent}
+.tab-sm[aria-selected="true"]{background:var(--surface);color:var(--fg);font-weight:600}
+.tbl-wrap{overflow-x:auto;max-height:340px;overflow-y:auto}
+table{border-collapse:collapse;width:100%;font-family:var(--mono);font-size:11px}
+th,td{text-align:left;padding:4px 7px;border-bottom:1px solid var(--line);white-space:nowrap}
+th{background:var(--surface-2);color:var(--fg-dim);font-weight:600;font-size:10px;
+  position:sticky;top:0;letter-spacing:.03em;z-index:1}
+td.num{text-align:right;font-variant-numeric:tabular-nums}
+tr.fresh td{animation:flash 1.4s ease-out}
+@keyframes flash{0%{background:var(--accent-soft)}100%{background:transparent}}
+.empty{padding:16px 12px;color:var(--fg-faint);font-size:12px;text-align:center}
+.pill{display:inline-block;font-size:10px;font-weight:700;padding:0 5px;border-radius:3px;
+  border:1px solid currentColor}
+.p-ok{color:var(--ok)} .p-no{color:var(--crit)} .p-wa{color:var(--warn)}
+
+/* ---------- 용어 ---------- */
+.term{border-bottom:1px dashed var(--accent);cursor:help;color:inherit;
+  background:none;border-left:0;border-right:0;border-top:0;padding:0;font:inherit}
+.pop{position:fixed;z-index:90;max-width:340px;background:var(--surface);
+  border:1px solid var(--line-strong);border-radius:8px;padding:11px 13px;
+  box-shadow:0 10px 30px rgba(0,0,0,.18);font-size:12.5px;line-height:1.6}
+.pop h4{margin:0 0 5px;font-size:13px;color:var(--accent)}
+.pop .x{position:absolute;top:5px;right:7px;background:none;border:none;
+  color:var(--fg-faint);font-size:15px;line-height:1;padding:2px}
+
+/* ---------- 시나리오 ---------- */
+.scen{display:grid;gap:6px}
+.scen button{text-align:left;background:var(--surface-2);border:1px solid var(--line);
+  border-radius:var(--r);padding:7px 9px;line-height:1.4}
+.scen button:hover{border-color:var(--accent);background:var(--accent-soft)}
+.scen b{display:block;font-size:12.5px;font-weight:600}
+.scen span{font-size:11px;color:var(--fg-dim)}
+
+/* ---------- 동시성 실험실 ---------- */
+.lanes{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+@media (max-width:700px){.lanes{grid-template-columns:1fr}}
+.lane{border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.lane-h{padding:6px 10px;background:var(--surface-2);border-bottom:1px solid var(--line);
+  font-size:12px;font-weight:600;display:flex;gap:7px;align-items:center}
+.lane-b{padding:4px 0}
+.ev{display:grid;grid-template-columns:38px minmax(0,1fr);gap:8px;padding:4px 10px;
+  font-family:var(--mono);font-size:11px;border-bottom:1px solid var(--line)}
+.ev:last-child{border-bottom:none}
+.ev .t{color:var(--fg-faint)}
+.ev.w{background:var(--warn-soft)}
+.ev.bad{background:var(--crit-soft);color:var(--crit);font-weight:600}
+.ev.good{background:var(--ok-soft)}
+.toggle{display:flex;align-items:center;gap:8px;background:var(--surface-2);
+  border:1px solid var(--line);border-radius:var(--r);padding:8px 10px;margin-bottom:12px}
+.toggle input{width:16px;height:16px;accent-color:var(--accent)}
+.toggle label{font-size:12.5px}
+.outcome{margin-top:12px;border-radius:var(--r);padding:10px 12px;border:1px solid;font-size:13px}
+.o-ok{background:var(--ok-soft);border-color:var(--ok)}
+.o-bad{background:var(--crit-soft);border-color:var(--crit)}
+.outcome b{font-family:var(--mono)}
+
+/* ---------- 배치 ---------- */
+.flowrow{display:flex;gap:8px;align-items:stretch;flex-wrap:wrap;margin-bottom:12px}
+.flowbox{flex:1 1 150px;min-width:0;border:1px solid var(--line);border-radius:var(--r);
+  padding:9px 11px;background:var(--surface-2)}
+.flowbox .fb-h{font-size:11px;font-weight:700;color:var(--fg-dim);letter-spacing:.03em;margin-bottom:3px}
+.flowbox .fb-v{font-family:var(--mono);font-size:17px;font-weight:600;
+  font-variant-numeric:tabular-nums}
+.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:11px;color:var(--fg-dim);margin-top:10px}
+.legend span{display:inline-flex;gap:4px;align-items:center}
+
+.foot{margin-top:28px;padding-top:16px;border-top:1px solid var(--line);
+  font-size:12px;color:var(--fg-dim);line-height:1.7}
+.foot code{font-family:var(--mono);font-size:11.5px;background:var(--surface-2);
+  padding:1px 4px;border-radius:3px}
+@media (prefers-reduced-motion:reduce){*{animation-duration:.01ms!important;transition-duration:.01ms!important}}
+</style>
+
+<div class="topbar"><div class="topbar-in">
+  <div class="brand">
+    <b>사망자 명의 금융거래 신속차단 — 운영 콘솔</b>
+    <span id="brandsub">SIM / core_bank · ext_link · channel · info_mart · comm_code</span>
+  </div>
+  <div class="clock">
+    <label for="sysdtm">시스템 일시</label>
+    <input type="datetime-local" id="sysdtm" step="1" value="2026-09-13T09:00:00">
+  </div>
+  <button class="btn btn-sm" id="resetBtn">초기화</button>
+  <button class="btn btn-sm" id="themeBtn">다크/라이트</button>
+</div></div>
+
+<div class="wrap">
+
+<div class="tabs" role="tablist">
+  <button class="tab" role="tab" aria-selected="true" data-pane="p-txn">거래 시뮬레이터</button>
+  <button class="tab" role="tab" aria-selected="false" data-pane="p-batch">사망정보 수신 배치</button>
+  <button class="tab" role="tab" aria-selected="false" data-pane="p-lock">동시성 실험실</button>
+</div>
+
+<!-- ================= 거래 시뮬레이터 ================= -->
+<section id="p-txn">
+<div class="grid3">
+
+  <!-- 좌: 단말 -->
+  <div style="display:grid;gap:14px">
+    <div class="card">
+      <div class="card-h"><span class="badge b-chnl">채널계</span><h3>거래 단말</h3></div>
+      <div class="card-b">
+        <div class="field">
+          <label for="chnl">채널</label>
+          <div class="chips" id="chnlChips"></div>
+        </div>
+        <div class="field">
+          <label for="acctSel">계좌</label>
+          <select id="acctSel"></select>
+        </div>
+        <div class="field">
+          <label for="typeSel">거래유형</label>
+          <select id="typeSel"></select>
+        </div>
+        <div class="field">
+          <label for="amtInput">거래금액 (원)</label>
+          <input type="text" id="amtInput" value="500000" inputmode="numeric">
+        </div>
+        <button class="btn btn-primary" id="sendBtn" style="width:100%">거래 전송</button>
+        <p class="note" style="margin:10px 0 0">
+          단말은 <b>금액과 계좌만</b> 보낸다. 차단 여부를 단말이 판단하지 않는 것이
+          실제 시스템의 구조다 — 판정은 계정계가 한다.
+        </p>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-h"><h3>시연 시나리오</h3></div>
+      <div class="card-b"><div class="scen" id="scenList"></div></div>
+    </div>
+  </div>
+
+  <!-- 중: 파이프라인 -->
+  <div style="display:grid;gap:14px;min-width:0">
+    <div id="verdictBox" class="verdict v-idle">
+      <div class="v-top"><strong>대기</strong></div>
+      <div class="v-msg">좌측에서 거래를 전송하면 처리 단계가 하나씩 표시됩니다.</div>
+    </div>
+
+    <div class="card">
+      <div class="card-h"><h3>처리 파이프라인</h3><span class="n" id="pipeMs"></span></div>
+      <div class="card-b"><div class="steps" id="steps"></div></div>
+    </div>
+
+    <div class="card">
+      <div class="card-h"><h3>송수신 전문</h3></div>
+      <div class="card-b">
+        <div class="msgpair">
+          <div><div class="msg-h">요청 (단말 → 계정계)</div><div class="msg" id="msgReq">—</div></div>
+          <div><div class="msg-h">응답 (계정계 → 단말)</div><div class="msg" id="msgRes">—</div></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 우: DB -->
+  <div class="card" id="dbCard" style="position:sticky;top:calc(env(safe-area-inset-top,0px) + 72px)">
+    <div class="card-h"><h3>데이터베이스 상태</h3><span class="n" id="dbCount"></span></div>
+    <div class="tabs-sm" id="dbTabs"></div>
+    <div class="tbl-wrap" id="dbTable"></div>
+    <div class="card-b" style="border-top:1px solid var(--line)">
+      <p class="note" id="dbNote"></p>
+    </div>
+  </div>
+
+</div>
+</section>
+
+<!-- ================= 배치 ================= -->
+<section id="p-batch" hidden>
+<div class="card" style="margin-bottom:14px">
+  <div class="card-h"><span class="badge b-ext">대외계</span><h3>사망자정보 수신 배치</h3></div>
+  <div class="card-b">
+    <p class="note" style="margin-top:0">
+      행정안전부 사망자 정보를 <b>야간에 파일로 받아</b> 우리 고객과 맞춰 보는 과정이다.
+      실시간 조회가 아니라 배치인 이유는, 전 국민 사망신고를 건건이 조회하면 비용과 부하가
+      감당되지 않기 때문이다. 주민등록번호는 평문으로 두지 않고
+      <button class="term" data-term="hash">해시값</button>으로만 맞춘다.
+    </p>
+    <div class="flowrow" style="margin-top:12px">
+      <div class="flowbox"><div class="fb-h">① 수신 레코드</div><div class="fb-v" id="bRecv">0</div></div>
+      <div class="flowbox"><div class="fb-h">② 매칭성공</div><div class="fb-v" id="bMatch">0</div></div>
+      <div class="flowbox"><div class="fb-h">③ 다건매칭 <span class="pill p-wa">보류</span></div><div class="fb-v" id="bMulti">0</div></div>
+      <div class="flowbox"><div class="fb-h">④ 미매칭</div><div class="fb-v" id="bNone">0</div></div>
+      <div class="flowbox"><div class="fb-h">⑤ 차단 생성</div><div class="fb-v" id="bBlock">0</div></div>
+    </div>
+    <button class="btn btn-primary" id="batchBtn">야간 배치 실행 (기준일자 20260912)</button>
+    <button class="btn" id="releaseBtn">오매칭 해제 처리 (최말순)</button>
+    <div class="steps" id="batchSteps" style="margin-top:14px"></div>
+  </div>
+</div>
+</section>
+
+<!-- ================= 동시성 ================= -->
+<section id="p-lock" hidden>
+<div class="card">
+  <div class="card-h"><span class="badge b-core">계정계</span><h3>동시 출금 실험</h3></div>
+  <div class="card-b">
+    <p class="note" style="margin-top:0">
+      같은 계좌에서 창구 A와 ATM B가 <b>동시에</b> 출금한다.
+      <button class="term" data-term="forupdate">SELECT … FOR UPDATE</button>를 끄고 켜면서
+      <button class="term" data-term="lost">갱신 손실</button>이 어떻게 생기는지 본다.
+    </p>
+    <div class="toggle" style="margin-top:12px">
+      <input type="checkbox" id="fuToggle" checked>
+      <label for="fuToggle"><b>잔액 조회 시 <code style="font-family:var(--mono)">FOR UPDATE</code> 사용</b>
+        — 끄면 두 세션이 같은 잔액을 읽는다</label>
+    </div>
+    <div class="field" style="max-width:260px">
+      <label for="lockAcct">실험 계좌</label>
+      <select id="lockAcct"></select>
+    </div>
+    <div class="field" style="max-width:260px">
+      <label for="lockAmt">각 세션 출금액 (원)</label>
+      <input type="text" id="lockAmt" value="700000" inputmode="numeric">
+    </div>
+    <button class="btn btn-primary" id="lockBtn">동시 출금 2건 실행</button>
+    <div class="lanes" style="margin-top:14px">
+      <div class="lane"><div class="lane-h"><span class="badge b-chnl">창구</span>세션 A</div>
+        <div class="lane-b" id="laneA"><div class="ev"><span class="t">—</span><span>대기</span></div></div></div>
+      <div class="lane"><div class="lane-h"><span class="badge b-chnl">ATM</span>세션 B</div>
+        <div class="lane-b" id="laneB"><div class="ev"><span class="t">—</span><span>대기</span></div></div></div>
+    </div>
+    <div id="lockOut"></div>
+  </div>
+</div>
+</section>
+
+<div class="foot">
+  <p style="margin:0 0 6px"><b>이 페이지에 대하여</b></p>
+  <p style="margin:0">
+    MySQL 5개 스키마(<code>core_bank</code> 계정계 · <code>ext_link</code> 대외계 ·
+    <code>channel</code> 채널계 · <code>info_mart</code> 정보계 · <code>comm_code</code> 공통)로 설계한
+    실제 DDL과 <code>block_rule</code> 초기 데이터를 그대로 옮겨 브라우저 메모리에서 돌린다.
+    표시되는 SQL은 Java 애플리케이션의 DAO가 실제로 실행하는 문장과 같다.
+    저장소가 <button class="term" data-term="inmem">인메모리</button>라 새로고침하면 초기 상태로 돌아간다.
+  </p>
+  <div class="legend">
+    <span><span class="badge b-core">계정계</span> 계좌·거래원장·차단</span>
+    <span><span class="badge b-ext">대외계</span> 외부기관 연계</span>
+    <span><span class="badge b-chnl">채널계</span> 창구·ATM·앱</span>
+    <span><span class="badge b-info">정보계</span> 감사·통계</span>
+    <span><span class="badge b-comm">공통</span> 코드</span>
+    <span><span class="badge b-svc">서비스</span> Java 로직 (SQL 아님)</span>
+  </div>
+</div>
+</div>
+
+<script>
+/* =====================================================================
+   용어 사전
+   ===================================================================== */
+const TERMS = {
+  hash:["해시값 (rrn_hash)","주민등록번호를 SHA-256 같은 함수로 바꾼 64자리 16진수다. 같은 번호는 항상 같은 해시가 되므로 <b>맞춰 보는 일(검색)</b>은 가능하지만, 해시에서 원래 번호를 되돌릴 수는 없다. 그래서 DB에는 평문을 저장하지 않고 <code>rrn_hash CHAR(64)</code>와 암호문 <code>rrn_enc VARBINARY(128)</code>만 둔다."],
+  forupdate:["SELECT … FOR UPDATE","조회하면서 그 행에 <b>배타 락</b>을 거는 문장이다. 다른 트랜잭션은 같은 행을 <code>FOR UPDATE</code>로 읽으려 할 때 줄을 서서 기다린다. 잔액처럼 <b>읽고 계산해서 다시 쓰는</b> 값은 이걸로 읽어야 한다. 그냥 <code>SELECT</code>는 락을 걸지 않아 아무도 기다리지 않는다."],
+  lost:["갱신 손실 (Lost Update)","두 세션이 같은 잔액(100만)을 읽고 각자 70만을 뺀 뒤 쓰면, 나중에 쓴 값이 먼저 쓴 값을 덮어 잔액이 30만이 된다. 실제로는 140만이 나갔는데 잔액은 70만만 줄어든다. <b>오류가 나지 않는다</b>는 점이 가장 위험하다."],
+  deadlock:["데드락 (Deadlock)","두 트랜잭션이 서로가 쥔 락을 기다려 영원히 못 끝나는 상태다. MySQL이 감지해서 한쪽을 <code>ERROR 1213</code>으로 강제 롤백시킨다. 이 프로젝트에서는 <code>acct_txn</code>에 INSERT할 때 외래키 때문에 부모 <code>acct</code> 행에 공유 락이 걸리는 것이 원인이었다."],
+  inmem:["인메모리 (In-Memory)","데이터를 디스크가 아니라 RAM에 두는 방식이다. 디스크보다 수천 배 빠르지만 <b>전원이 끊기면 사라진다</b>. 세션 저장, 실시간 순위, 캐시에 쓴다. Redis·Memcached·H2가 대표적이다."],
+  blockstart:["차단개시일시","<code>사망신고일 + 1일 00:00:00.000</code>이다. 신고 당일은 유족이 장례비를 쓸 수 있어야 하므로 즉시 막지 않는다. 이 값은 애플리케이션이 계산하지 않고 DB의 CHECK 제약<br><code>CHECK (block_start_dtm = TIMESTAMP(DATE_ADD(death_report_dt, INTERVAL 1 DAY)))</code><br>이 보장한다. 자바가 또 계산하면 두 곳이 언젠가 어긋난다."],
+  rule:["차단규칙 테이블 (block_rule)","\"입금 등 필수 거래를 제외한 모든 거래를 차단\"이라는 정책을 <b>코드의 if문이 아니라 테이블의 행</b>으로 표현한 것이다. 정책이 바뀌면 자바를 고쳐 다시 배포하는 대신 <code>apply_to_dt</code>를 닫고 새 행을 넣는다. 과거 거래를 다시 판정해도 '그때의 규칙'으로 판정된다."],
+  audit:["감사 로그 (audit_death_access)","누가·언제·왜 사망정보를 봤는지 남기는 표다. 사망 여부는 민감정보이므로 조회 자체가 기록 대상이다. <code>purpose_cd</code>로 목적(거래 차단판정/예외인출 심사/감독기관 제출)을 구분해 둬야 나중에 \"목적 외 이용\"을 걸러낼 수 있다."],
+  idem:["거래고유번호 (txn_unique_no)","거래 한 건을 가리키는 전 시스템 공통 번호다. <code>UNIQUE</code> 제약이 걸려 있어 같은 번호로 두 번 들어오면 DB가 거부한다. 통신이 끊겨 단말이 같은 요청을 다시 보내도 중복 출금이 되지 않게 막는 장치다."],
+  commit:["COMMIT / ROLLBACK","트랜잭션의 끝이다. <code>COMMIT</code>은 그 안의 모든 변경을 한꺼번에 확정하고, <code>ROLLBACK</code>은 한꺼번에 되돌린다. 잔액 수정과 원장 적재가 같은 트랜잭션에 있어야, 둘 중 하나만 반영되는 상태가 생기지 않는다."],
+  fk:["복합 외래키 (생성 컬럼)","코드값이 <b>올바른 그룹의</b> 코드인지까지 DB가 검사하게 만든 장치다. <code>cust_status_grp</code>를 <code>GENERATED ALWAYS AS ('CUST_ST') STORED</code>로 고정해 두고 <code>(grp, cd)</code> 두 컬럼으로 외래키를 건다. 그러면 존재하지 않는 코드도, 다른 그룹의 코드도 들어오지 못한다."],
+  mvcc:["MVCC","각 트랜잭션에 '그 시점의 스냅샷'을 보여 주는 방식이다. 그래서 락 없는 <code>SELECT</code>는 다른 트랜잭션이 행을 고치고 있어도 기다리지 않고 바로 읽는다. 읽기가 쓰기를 막지 않는다는 뜻이다."]
+};
+
+/* =====================================================================
+   공통 코드 (comm_code)
+   ===================================================================== */
+const CHNL = {'10':'창구','20':'ATM','30':'인터넷뱅킹','40':'모바일'};
+const TXN  = {
+  DEP:{nm:'입금',       dr:'I'}, TRI:{nm:'이체입금',   dr:'I'},
+  WDR:{nm:'출금',       dr:'O'}, TRO:{nm:'이체출금',   dr:'O'},
+  ATO:{nm:'자동이체출금',dr:'O'}, CLS:{nm:'계좌해지',   dr:'O'},
+  LON:{nm:'대출실행',   dr:'O'}
+};
+const RSP = {
+  '0000':'정상 처리되었습니다',
+  'D001':'사망자 명의 계좌로 출금 거래가 제한됩니다',
+  'D002':'사망자 명의 계좌의 자동이체가 중단되었습니다',
+  'D003':'사망자 명의 계좌는 해지할 수 없습니다',
+  'D004':'사망자 명의로 신규 여신을 실행할 수 없습니다',
+  'E010':'예외 인출 승인 거래입니다',
+  'E030':'잔액이 부족합니다',
+  'X999':'시스템 오류가 발생했습니다'
+};
+const BLK_ST = {'10':'차단예정','20':'차단중','30':'해제'};
+
+/* =====================================================================
+   인메모리 저장소 — 실제 seed_data.sql 과 동일
+   ===================================================================== */
+const SEED = () => ({
+  cust:[
+    {cust_no:'C0000000001',cust_nm:'김정상',birth_dt:'1955-03-12',cust_status_cd:'10'},
+    {cust_no:'C0000000002',cust_nm:'박순자',birth_dt:'1948-07-02',cust_status_cd:'20'},
+    {cust_no:'C0000000003',cust_nm:'이영희',birth_dt:'1960-11-20',cust_status_cd:'10'},
+    {cust_no:'C0000000004',cust_nm:'이영희',birth_dt:'1960-11-20',cust_status_cd:'10'},
+    {cust_no:'C0000000005',cust_nm:'최말순',birth_dt:'1951-01-09',cust_status_cd:'10'}
+  ],
+  acct:[
+    {acct_no:'10200000000001',cust_no:'C0000000001',balance_amt:4950000,acct_status_cd:'10'},
+    {acct_no:'10200000000002',cust_no:'C0000000002',balance_amt:1900000,acct_status_cd:'20'},
+    {acct_no:'10200000000003',cust_no:'C0000000003',balance_amt:2000000,acct_status_cd:'10'},
+    {acct_no:'10200000000004',cust_no:'C0000000004',balance_amt:1200000,acct_status_cd:'10'},
+    {acct_no:'10200000000005',cust_no:'C0000000005',balance_amt:3700000,acct_status_cd:'10'}
+  ],
+  death_block:[
+    {block_id:1,cust_no:'C0000000002',death_dt:'2026-09-11',death_report_dt:'2026-09-12',
+     block_start_dtm:'2026-09-13 00:00:00.000',block_status_cd:'20',release_dtm:null,release_reason_cd:null}
+  ],
+  block_rule:[
+    {rule_id:1,txn_type_cd:'DEP',dr_cr_cd:'I',allow_yn:'Y',exception_possible_yn:'N',reject_rsp_cd:null,apply_from_dt:'2026-09-11',apply_to_dt:'9999-12-31'},
+    {rule_id:2,txn_type_cd:'TRI',dr_cr_cd:'I',allow_yn:'Y',exception_possible_yn:'N',reject_rsp_cd:null,apply_from_dt:'2026-09-11',apply_to_dt:'9999-12-31'},
+    {rule_id:3,txn_type_cd:'WDR',dr_cr_cd:'O',allow_yn:'N',exception_possible_yn:'Y',reject_rsp_cd:'D001',apply_from_dt:'2026-09-11',apply_to_dt:'9999-12-31'},
+    {rule_id:4,txn_type_cd:'TRO',dr_cr_cd:'O',allow_yn:'N',exception_possible_yn:'Y',reject_rsp_cd:'D001',apply_from_dt:'2026-09-11',apply_to_dt:'9999-12-31'},
+    {rule_id:5,txn_type_cd:'ATO',dr_cr_cd:'O',allow_yn:'N',exception_possible_yn:'N',reject_rsp_cd:'D002',apply_from_dt:'2026-09-11',apply_to_dt:'9999-12-31'},
+    {rule_id:6,txn_type_cd:'CLS',dr_cr_cd:'O',allow_yn:'N',exception_possible_yn:'N',reject_rsp_cd:'D003',apply_from_dt:'2026-09-11',apply_to_dt:'9999-12-31'},
+    {rule_id:7,txn_type_cd:'LON',dr_cr_cd:'O',allow_yn:'N',exception_possible_yn:'N',reject_rsp_cd:'D004',apply_from_dt:'2026-09-11',apply_to_dt:'9999-12-31'}
+  ],
+  acct_txn:[], chnl_request:[], chnl_block_decision:[], chnl_response:[],
+  ext_death_record:[], audit_death_access:[]
+});
+
+let DB = SEED();
+let SEQ = 0;
+let FRESH = new Set();
+
+/* =====================================================================
+   헬퍼
+   ===================================================================== */
+const $  = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+const won  = n => Number(n).toLocaleString('ko-KR');
+const esc  = s => String(s==null?'':s).replace(/[&<>]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+const pad  = (n,w=2) => String(n).padStart(w,'0');
+
+/** 화면의 "시스템 일시" 입력값을 Date 로 읽는다. 차단개시 경계 실험의 핵심 장치. */
+function sysDate(){
+  const v = $('#sysdtm').value;
+  return v ? new Date(v) : new Date();
+}
+function fmtDtm(d){
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())} `
+       + `${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}.`
+       + `${pad(d.getMilliseconds(),3)}`;
+}
+function fmtDt(d){
+  return `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+}
+/** 'YYYY-MM-DD HH:mm:ss.SSS' 문자열을 Date 로. */
+function parseDtm(s){ return new Date(s.replace(' ','T')); }
+
+/** 거래고유번호: T + yyyyMMddHHmmssSSS + 3자리 일련번호 (VARCHAR(30) 안에 들어간다) */
+function nextNo(prefix, d){
+  SEQ = (SEQ + 1) % 1000;
+  const s = `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}`
+          + `${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`
+          + `${pad(d.getMilliseconds(),3)}`;
+  return prefix + s + pad(SEQ,3);
+}
+
+/** SQL 문장에 최소한의 색을 입힌다. */
+const KW = /\b(SELECT|INSERT|INTO|UPDATE|SET|FROM|WHERE|AND|OR|VALUES|JOIN|ON|BETWEEN|FOR UPDATE|COMMIT|ROLLBACK|BEGIN|IS|NULL|NOT|AS|CURRENT_TIMESTAMP)\b/g;
+function sql(s){
+  return esc(s)
+    .replace(/--[^\n]*/g, m=>`\u0001${m}\u0002`)
+    .replace(KW, m=>`<span class="k">${m}</span>`)
+    .replace(/'([^']*)'/g, (m)=>`<span class="s">${m}</span>`)
+    .replace(/\u0001(.*?)\u0002/g, (m,p)=>`<span class="c">${p}</span>`);
+}
+
+/* =====================================================================
+   DB 뷰어
+   ===================================================================== */
+const VIEWS = [
+  {k:'acct',                 t:'acct',                lay:'core', nm:'계좌',
+   note:'<b>acct.balance_amt</b> 는 의도적 반정규화다. 거래원장을 매번 합산하면 거래가 쌓일수록 조회가 느려지므로 현재 잔액을 따로 들고 있다. 대신 원장 합계와 일치하는지 검증 쿼리로 확인한다.'},
+  {k:'death_block',          t:'death_block',         lay:'core', nm:'사망차단',
+   note:'고객 1명당 1행(<code>UNIQUE (cust_no)</code>). <b>death_report_dt</b> 를 여기에 복제해 두는 이유는, 원천 파일이 정정되더라도 <b>판정 근거가 된 그 날짜</b>는 바뀌지 않아야 하기 때문이다.'},
+  {k:'block_rule',           t:'block_rule',          lay:'core', nm:'차단규칙',
+   note:'정책이 테이블에 들어 있다. <code>allow_yn=\'Y\'</code> 면 <code>reject_rsp_cd</code> 는 반드시 NULL 이어야 한다는 CHECK 제약이 걸려 있어, 모순된 규칙은 입력 자체가 거부된다.'},
+  {k:'acct_txn',             t:'acct_txn',            lay:'core', nm:'거래원장',
+   note:'거래가 성사된 것만 쌓인다. <b>balance_after_amt</b> 는 그 시점의 잔액을 고정해 두는 값으로, 나중에 잔액이 바뀌어도 과거 거래의 거래후잔액은 그대로 남는다.'},
+  {k:'chnl_request',         t:'chnl_request',        lay:'chnl', nm:'거래요청',
+   note:'단말이 보낸 원문이다. <b>거절된 요청도 남는다</b> — 계정계 트랜잭션이 롤백돼도 채널 로그는 별도 트랜잭션으로 적재하기 때문이다.'},
+  {k:'chnl_block_decision',  t:'chnl_block_decision', lay:'chnl', nm:'판정이력',
+   note:'어떤 규칙(<b>applied_rule_id</b>)으로 어떤 차단개시일시를 근거로 판정했는지를 스냅샷으로 남긴다. 나중에 규칙이 바뀌어도 "그때 왜 그렇게 판정했는지"를 설명할 수 있다.'},
+  {k:'chnl_response',        t:'chnl_response',       lay:'chnl', nm:'거래응답',
+   note:'응답 메시지를 자바 문자열로 들고 있지 않고 <code>comm_code.rsp_code</code> 에서 가져와 넣는다. 문구 원본이 코드 테이블 한 곳에만 있게 된다.'},
+  {k:'ext_death_record',     t:'ext_death_record',    lay:'ext',  nm:'사망원천',
+   note:'외부에서 받은 원본 레코드다. 우리 고객번호(<b>matched_cust_no</b>)와 맞춰졌는지를 <code>match_status_cd</code> 로 관리한다. 계층 경계를 넘으므로 고객 테이블에 FK 를 걸지 않는다.'},
+  {k:'audit_death_access',   t:'audit_death_access',  lay:'info', nm:'조회감사',
+   note:'사망정보를 <b>조회한 것 자체</b>를 남긴다. <code>purpose_cd</code> 로 목적을 구분해 두면 목적 외 이용을 사후에 걸러낼 수 있다.'}
+];
+let dbView = 'acct';
+
+const COLS = {
+  acct:['acct_no','cust_no','balance_amt','acct_status_cd'],
+  death_block:['block_id','cust_no','death_report_dt','block_start_dtm','block_status_cd'],
+  block_rule:['rule_id','txn_type_cd','dr_cr_cd','allow_yn','reject_rsp_cd','apply_to_dt'],
+  acct_txn:['txn_unique_no','acct_no','txn_type_cd','dr_cr_cd','txn_amt','balance_after_amt','rsp_cd'],
+  chnl_request:['request_id','chnl_cd','acct_no','txn_type_cd','request_amt'],
+  chnl_block_decision:['decision_id','request_id','decision_cd','applied_rule_id','block_start_dtm'],
+  chnl_response:['response_id','request_id','rsp_cd','rsp_message'],
+  ext_death_record:['death_record_id','cust_nm','rrn_hash','death_report_dt','match_status_cd','matched_cust_no'],
+  audit_death_access:['access_log_id','actor_id','target_cust_no','purpose_cd','result_cd']
+};
+const NUMCOL = new Set(['balance_amt','txn_amt','balance_after_amt','request_amt','rule_id',
+  'block_id','request_id','decision_id','response_id','access_log_id','death_record_id','applied_rule_id']);
+
+function cellHtml(col,v,row){
+  if(v===null||v===undefined) return '<span style="color:var(--fg-faint)">NULL</span>';
+  if(NUMCOL.has(col) && typeof v==='number' && col.includes('amt')) return won(v);
+  if(col==='rrn_hash') return esc(String(v).slice(0,12))+'…';
+  if(col==='allow_yn') return `<span class="pill ${v==='Y'?'p-ok':'p-no'}">${v}</span>`;
+  if(col==='block_status_cd') return `<span class="pill ${v==='20'?'p-no':(v==='30'?'p-ok':'p-wa')}">${v} ${BLK_ST[v]||''}</span>`;
+  if(col==='decision_cd') return `<span class="pill ${v==='10'?'p-ok':(v==='20'?'p-no':'p-wa')}">${v} ${v==='10'?'허용':v==='20'?'차단':'예외허용'}</span>`;
+  if(col==='rsp_cd') return `<span class="pill ${v==='0000'||v==='E010'?'p-ok':'p-no'}">${v}</span>`;
+  if(col==='match_status_cd'){
+    const m={'20':['p-ok','매칭성공'],'30':['p-no','미매칭'],'40':['p-wa','다건매칭'],'10':['p-wa','미처리']}[v]||['p-wa',''];
+    return `<span class="pill ${m[0]}">${v} ${m[1]}</span>`;
+  }
+  if(col==='chnl_cd') return esc(v)+' '+(CHNL[v]||'');
+  if(col==='txn_type_cd') return esc(v)+' '+((TXN[v]||{}).nm||'');
+  if(col==='purpose_cd') return esc(v)+' 차단판정';
+  return esc(v);
+}
+
+function renderDb(){
+  $('#dbTabs').innerHTML = VIEWS.map(v=>
+    `<button class="tab-sm" role="tab" aria-selected="${v.k===dbView}" data-v="${v.k}">
+      <span class="badge b-${v.lay}" style="margin-right:4px">${{core:'계정',ext:'대외',chnl:'채널',info:'정보'}[v.lay]}</span>${v.nm}
+     </button>`).join('');
+  const v = VIEWS.find(x=>x.k===dbView);
+  const rows = DB[dbView]||[];
+  const cols = COLS[dbView];
+  $('#dbTable').innerHTML = rows.length===0
+    ? `<div class="empty">행이 없습니다 — 거래를 전송하면 여기에 쌓입니다.</div>`
+    : `<table><thead><tr>${cols.map(c=>`<th>${c}</th>`).join('')}</tr></thead><tbody>${
+        rows.slice().reverse().map(r=>{
+          const key = dbView+':'+(r[cols[0]]);
+          return `<tr class="${FRESH.has(key)?'fresh':''}">${cols.map(c=>
+            `<td class="${NUMCOL.has(c)?'num':''}">${cellHtml(c,r[c],r)}</td>`).join('')}</tr>`;
+        }).join('')}</tbody></table>`;
+  $('#dbCount').textContent = `${v.t} · ${rows.length} rows`;
+  $('#dbNote').innerHTML = v.note;
+}
+function markFresh(table,id){ FRESH.add(table+':'+id); setTimeout(()=>FRESH.delete(table+':'+id),1600); }
+
+/* =====================================================================
+   파이프라인 렌더링
+   ===================================================================== */
+const LAYER_LABEL = {core:['계정계','b-core'],ext:['대외계','b-ext'],chnl:['채널계','b-chnl'],
+  info:['정보계','b-info'],comm:['공통','b-comm'],svc:['서비스','b-svc']};
+
+function stepHtml(s,i){
+  const L = LAYER_LABEL[s.layer]||LAYER_LABEL.svc;
+  return `<div class="step ${s.skip?'skip':''}" data-i="${i}">
+    <div class="step-rail"><div class="step-dot">${s.skip?'–':i+1}</div><div class="step-line"></div></div>
+    <div class="step-body">
+      <div class="step-t"><span class="badge ${L[1]}">${L[0]}</span>${esc(s.title)}
+        ${s.ms!=null?`<span class="ms">${s.ms} ms</span>`:''}</div>
+      ${s.why?`<div class="step-why">${s.why}</div>`:''}
+      ${s.sql?`<pre class="sql">${sql(s.sql)}</pre>`:''}
+      ${s.res?`<div class="res">${s.res}</div>`:''}
+    </div></div>`;
+}
+
+async function play(container,steps){
+  container.innerHTML = steps.map(stepHtml).join('');
+  const els = [...container.querySelectorAll('.step')];
+  const quick = matchMedia('(prefers-reduced-motion:reduce)').matches;
+  for(const el of els){
+    el.classList.add('on');
+    if(!quick) await new Promise(r=>setTimeout(r,170));
+  }
+}
+
+/* =====================================================================
+   거래 판정 — Java BlockDecisionService.judge() 와 같은 순서
+   ===================================================================== */
+function judge(cust_no, typeCd, at){
+  const block = DB.death_block.find(b=>b.cust_no===cust_no);
+  if(!block) return {result:'10',rsp:'0000',reason:'허용 (차단 정보 없음)',rule:null,bs:null,stage:'no-block'};
+  if(block.block_status_cd!=='20')
+    return {result:'10',rsp:'0000',reason:`허용 (차단상태 아님: ${BLK_ST[block.block_status_cd]})`,
+            rule:null,bs:block.block_start_dtm,stage:'not-blocked'};
+  if(at < parseDtm(block.block_start_dtm))
+    return {result:'10',rsp:'0000',reason:'허용 (차단개시 전)',rule:null,bs:block.block_start_dtm,stage:'before'};
+  const baseDt = fmtDt(at);
+  const rule = DB.block_rule.find(r=>r.txn_type_cd===typeCd && r.dr_cr_cd===TXN[typeCd].dr
+                && r.apply_from_dt<=baseDt && baseDt<=r.apply_to_dt);
+  if(!rule){
+    if(TXN[typeCd].dr==='I') return {result:'10',rsp:'0000',reason:'허용 (입금 - 해당 규칙 없음)',rule:null,bs:block.block_start_dtm,stage:'norule'};
+    return {result:'20',rsp:'D001',reason:'차단 (출금 규칙 미정의 - 안전측 기본값)',rule:null,bs:block.block_start_dtm,stage:'norule'};
+  }
+  if(rule.allow_yn==='Y')
+    return {result:'10',rsp:'0000',reason:'허용 (규칙상 필수거래)',rule,bs:block.block_start_dtm,stage:'rule-allow'};
+  return {result:'20',rsp:rule.reject_rsp_cd,reason:`차단 (${rule.reject_rsp_cd})`,rule,bs:block.block_start_dtm,stage:'rule-block'};
+}
+
+/* =====================================================================
+   거래 전송
+   ===================================================================== */
+let chnlCd = '10';
+
+function runTxn(){
+  const acctNo = $('#acctSel').value;
+  const typeCd = $('#typeSel').value;
+  const amt    = Math.max(0, parseInt(String($('#amtInput').value).replace(/[^0-9]/g,''),10) || 0);
+  const now    = sysDate();
+  const acct   = DB.acct.find(a=>a.acct_no===acctNo);
+  const cust   = DB.cust.find(c=>c.cust_no===acct.cust_no);
+  const reqNo  = nextNo('R',now);
+  const txnNo  = nextNo('T',now);
+  const steps  = [];
+  let t = 0; const tick = n => (t += n);
+
+  /* ① 채널계 — 요청 적재 */
+  const reqId = DB.chnl_request.length+1;
+  DB.chnl_request.push({request_id:reqId,request_unique_no:reqNo,chnl_cd:chnlCd,
+    cust_no:acct.cust_no,acct_no:acctNo,txn_type_cd:typeCd,request_amt:amt||null,
+    request_dtm:fmtDtm(now)});
+  markFresh('chnl_request',reqId);
+  steps.push({layer:'chnl',title:'거래요청 적재',ms:tick(2),
+    why:'단말이 보낸 원문을 먼저 남긴다. 뒤에서 거절되더라도 "요청이 들어왔다"는 사실은 지워지면 안 된다.',
+    sql:`INSERT INTO channel.chnl_request\n  (request_unique_no, chnl_cd, acct_no, txn_type_cd, request_amt, request_dtm)\nVALUES ('${reqNo}', '${chnlCd}', '${acctNo}', '${typeCd}', ${amt||'NULL'}, '${fmtDtm(now)}');`,
+    res:`request_id = <b>${reqId}</b>`});
+
+  /* ② 계정계 — 계좌 조회 (FOR UPDATE) */
+  steps.push({layer:'core',title:'계좌 조회 + 행 잠금',ms:tick(4),
+    why:'잔액을 바꿀 예정이므로 <button class="term" data-term="forupdate">FOR UPDATE</button> 로 읽는다. 이 순서를 지키면 뒤의 INSERT 가 만드는 <button class="term" data-term="deadlock">데드락</button> 경로가 사라진다.',
+    sql:`SELECT acct_no, cust_no, balance_amt, acct_status_cd\n  FROM core_bank.acct\n WHERE acct_no = '${acctNo}'\n   FOR UPDATE;`,
+    res:`cust_no = <b>${acct.cust_no}</b> (${cust.cust_nm}) · balance_amt = <b>${won(acct.balance_amt)}</b>`});
+
+  /* ③ 계정계 — 차단 조회 */
+  const block = DB.death_block.find(b=>b.cust_no===acct.cust_no);
+  steps.push({layer:'core',title:'사망차단 정보 조회',ms:tick(3),
+    why:'고객 1명당 1행이므로 <code>UNIQUE (cust_no)</code> 로 단건 조회가 보장된다.',
+    sql:`SELECT block_id, death_report_dt, block_start_dtm, block_status_cd\n  FROM core_bank.death_block\n WHERE cust_no = '${acct.cust_no}';`,
+    res: block
+      ? `1 row — 상태 <b>${block.block_status_cd} ${BLK_ST[block.block_status_cd]}</b> · <button class="term" data-term="blockstart">차단개시</button> <b>${block.block_start_dtm}</b>`
+      : `<b>0 rows</b> — 차단 대상이 아니다`});
+
+  /* ④ 정보계 — 감사 로그 */
+  const logId = DB.audit_death_access.length+1;
+  DB.audit_death_access.push({access_log_id:logId,access_dtm:fmtDtm(now),actor_id:'JAVA-APP',
+    actor_type_cd:'30',target_cust_no:acct.cust_no,purpose_cd:'10',chnl_cd:chnlCd,
+    result_cd: block?'0000':'0000'});
+  markFresh('audit_death_access',logId);
+  steps.push({layer:'info',title:'사망정보 조회 감사기록',ms:tick(2),
+    why:'사망 여부는 민감정보라 <button class="term" data-term="audit">조회 자체가 기록 대상</button>이다. 목적코드 10 = 거래 차단판정.',
+    sql:`INSERT INTO info_mart.audit_death_access\n  (access_dtm, actor_id, actor_type_cd, target_cust_no, purpose_cd, chnl_cd, result_cd)\nVALUES ('${fmtDtm(now)}', 'JAVA-APP', '30', '${acct.cust_no}', '10', '${chnlCd}', '0000');`,
+    res:`access_log_id = <b>${logId}</b>`});
+
+  /* ⑤ 계정계 — 차단규칙 조회 */
+  const v = judge(acct.cust_no, typeCd, now);
+  const needRule = block && block.block_status_cd==='20' && now >= parseDtm(block.block_start_dtm);
+  if(needRule){
+    steps.push({layer:'core',title:'차단규칙 조회',ms:tick(3),
+      why:'허용/차단은 코드의 if 문이 아니라 <button class="term" data-term="rule">block_rule 테이블</button>이 결정한다. 기준일자로 그 시점에 유효한 규칙만 뽑는다.',
+      sql:`SELECT rule_id, allow_yn, exception_possible_yn, reject_rsp_cd\n  FROM core_bank.block_rule\n WHERE txn_type_cd = '${typeCd}'\n   AND dr_cr_cd    = '${TXN[typeCd].dr}'\n   AND '${fmtDt(now)}' BETWEEN apply_from_dt AND apply_to_dt;`,
+      res: v.rule
+        ? `rule_id = <b>${v.rule.rule_id}</b> · allow_yn = <b>${v.rule.allow_yn}</b> · 예외인출 가능 = <b>${v.rule.exception_possible_yn}</b> · reject_rsp_cd = <b>${v.rule.reject_rsp_cd||'NULL'}</b>`
+        : `<b>0 rows</b> — 규칙 미정의`});
+  }else{
+    steps.push({layer:'core',title:'차단규칙 조회',skip:true,
+      why: block ? (block.block_status_cd!=='20'
+              ? `차단 상태가 <b>${BLK_ST[block.block_status_cd]}</b> 라 규칙을 볼 필요가 없다.`
+              : `거래일시가 차단개시일시(<b>${block.block_start_dtm}</b>) 이전이라 아직 효력이 없다.`)
+            : '차단 대상이 아니라 규칙을 조회하지 않는다.'});
+  }
+
+  /* ⑥ 서비스 — 판정 */
+  const order = [
+    ['① 차단 정보가 있는가',            block?'있음':'없음 → 허용'],
+    ['② 상태가 차단중(20)인가',         block?(block.block_status_cd==='20'?'예':`아니오(${BLK_ST[block.block_status_cd]}) → 허용`):'—'],
+    ['③ 차단개시일시를 지났는가',        block&&block.block_status_cd==='20'?(now>=parseDtm(block.block_start_dtm)?'예':'아니오 → 허용'):'—'],
+    ['④ 규칙이 허용(allow_yn=Y)인가',   v.rule?(v.rule.allow_yn==='Y'?'예 → 허용':'아니오 → 차단'):'—']
+  ];
+  steps.push({layer:'svc',title:'차단 판정 (Java 서비스 계층)',ms:tick(1),
+    why:'SQL 이 아니다. "규칙은 테이블에, <b>조합과 분기는 서비스 계층에</b>" — 이 순서 자체가 업무 규칙이다.',
+    res: order.map(([q,a])=>`${q} → <b>${a}</b>`).join('<br>')});
+
+  /* ⑦ 계정계 — 잔액/원장 */
+  let after = acct.balance_amt, ok = v.result==='10', failRsp = null;
+  if(ok){
+    if(TXN[typeCd].dr==='I') after = acct.balance_amt + amt;
+    else if(acct.balance_amt < amt){ ok=false; failRsp='E030'; }
+    else after = acct.balance_amt - amt;
+  }
+  if(ok){
+    acct.balance_amt = after;
+    DB.acct_txn.push({txn_unique_no:txnNo,acct_no:acctNo,txn_dtm:fmtDtm(now),txn_type_cd:typeCd,
+      dr_cr_cd:TXN[typeCd].dr,txn_amt:amt,balance_after_amt:after,chnl_cd:chnlCd,rsp_cd:'0000'});
+    markFresh('acct',acctNo); markFresh('acct_txn',txnNo);
+    steps.push({layer:'core',title:'잔액 수정 + 거래원장 적재',ms:tick(6),
+      why:'락을 쥔 상태라 읽은 잔액이 그대로 유효하다. <button class="term" data-term="idem">거래고유번호</button>에 UNIQUE 가 걸려 있어 같은 요청이 두 번 들어와도 중복 적재되지 않는다.',
+      sql:`UPDATE core_bank.acct SET balance_amt = ${after}\n WHERE acct_no = '${acctNo}';\n\nINSERT INTO core_bank.acct_txn\n  (txn_unique_no, acct_no, txn_dtm, txn_type_cd, dr_cr_cd,\n   txn_amt, balance_after_amt, chnl_cd, rsp_cd)\nVALUES ('${txnNo}', '${acctNo}', '${fmtDtm(now)}', '${typeCd}', '${TXN[typeCd].dr}',\n        ${amt}, ${after}, '${chnlCd}', '0000');`,
+      res:`잔액 ${won(after)} 원 · txn_unique_no = <b>${txnNo}</b>`});
+  }else{
+    steps.push({layer:'core',title:'잔액 수정 + 거래원장 적재',skip:true,
+      why: failRsp==='E030'
+        ? '판정은 통과했지만 잔액이 부족하다. 원장에 아무 것도 남지 않는다.'
+        : '차단으로 거절됐다. 돈이 움직이지 않았으므로 원장에 남길 것이 없다. 트랜잭션은 <button class="term" data-term="commit">ROLLBACK</button> 된다.'});
+  }
+
+  const finalRsp = ok ? '0000' : (failRsp || v.rsp);
+
+  /* ⑧ 채널계 — 판정이력 + 응답 */
+  const decId = DB.chnl_block_decision.length+1;
+  DB.chnl_block_decision.push({decision_id:decId,request_id:reqId,
+    decision_cd:v.result,applied_rule_id:v.rule?v.rule.rule_id:null,
+    block_start_dtm:v.bs,decision_dtm:fmtDtm(now),txn_unique_no:ok?txnNo:null});
+  const resId = DB.chnl_response.length+1;
+  DB.chnl_response.push({response_id:resId,request_id:reqId,rsp_cd:finalRsp,
+    rsp_message:RSP[finalRsp],response_dtm:fmtDtm(now),elapsed_ms:t+3});
+  markFresh('chnl_block_decision',decId); markFresh('chnl_response',resId);
+  steps.push({layer:'chnl',title:'판정이력 + 응답 적재',ms:tick(3),
+    why:'계정계 트랜잭션과 <b>분리된 트랜잭션</b>으로 쓴다. 같이 묶으면 거절 시 롤백되면서 거절 기록까지 사라진다.',
+    sql:`INSERT INTO channel.chnl_block_decision\n  (request_id, decision_cd, applied_rule_id, block_start_dtm, decision_dtm, txn_unique_no)\nVALUES (${reqId}, '${v.result}', ${v.rule?v.rule.rule_id:'NULL'}, ${v.bs?`'${v.bs}'`:'NULL'}, '${fmtDtm(now)}', ${ok?`'${txnNo}'`:'NULL'});\n\n-- 응답 문구는 자바가 아니라 코드 테이블에서 가져온다\nINSERT INTO channel.chnl_response (request_id, rsp_cd, rsp_message, response_dtm, elapsed_ms)\nSELECT ${reqId}, r.rsp_cd, r.rsp_message, '${fmtDtm(now)}', ${t+3}\n  FROM comm_code.rsp_code r WHERE r.rsp_cd = '${finalRsp}';`,
+    res:`decision_cd = <b>${v.result}</b> · rsp_cd = <b>${finalRsp}</b>`});
+
+  /* ⑨ 커밋 */
+  steps.push({layer:'core',title: ok?'COMMIT':'ROLLBACK',ms:tick(2),
+    why: ok ? '잔액 수정과 원장 적재가 한꺼번에 확정된다. 둘 중 하나만 반영되는 상태는 생기지 않는다.'
+            : '계정계 변경은 되돌린다. 채널계 로그는 별도 트랜잭션이라 남는다.',
+    sql: ok?'COMMIT;':'ROLLBACK;'});
+
+  /* ---- 결과 표시 ---- */
+  const vb = $('#verdictBox');
+  const kind = ok ? 'v-allow' : (finalRsp==='E030' ? 'v-exc' : 'v-block');
+  const label = ok ? '허용' : (finalRsp==='E030' ? '거절 (잔액부족)' : '차단');
+  vb.className = 'verdict '+kind;
+  vb.innerHTML = `
+    <div class="v-top"><strong>${label}</strong>
+      <span class="v-code">${finalRsp}</span>
+      <span style="font-size:12.5px;color:var(--fg-dim)">${esc(RSP[finalRsp])}</span></div>
+    <div class="v-msg">${esc(cust.cust_nm)} · ${acctNo} · ${TXN[typeCd].nm} ${won(amt)}원 · ${CHNL[chnlCd]}</div>
+    <div class="v-meta">
+      <span>판정사유 <b>${esc(v.reason)}</b></span>
+      <span>적용규칙 <b>${v.rule?('rule_id '+v.rule.rule_id):'없음'}</b></span>
+      <span>차단개시 <b>${v.bs||'—'}</b></span>
+      <span>거래일시 <b>${fmtDtm(now)}</b></span>
+    </div>`;
+  $('#pipeMs').textContent = `총 ${t} ms`;
+
+  $('#msgReq').textContent =
+`REQ-NO   : ${reqNo}
+CHNL     : ${chnlCd} (${CHNL[chnlCd]})
+ACCT-NO  : ${acctNo}
+TXN-TYPE : ${typeCd} / ${TXN[typeCd].dr}
+AMOUNT   : ${won(amt)}
+REQ-DTM  : ${fmtDtm(now)}`;
+  $('#msgRes').textContent =
+`REQ-NO   : ${reqNo}
+RSP-CD   : ${finalRsp}
+RSP-MSG  : ${RSP[finalRsp]}
+TXN-NO   : ${ok?txnNo:'-'}
+BALANCE  : ${ok?won(after):'-'}
+ELAPSED  : ${t+3} ms`;
+
+  play($('#steps'),steps);
+  renderDb();
+  renderAcctSel();
+}
+
+/* =====================================================================
+   시나리오 프리셋
+   ===================================================================== */
+const SCEN = [
+  {t:'차단개시 1초 전 출금',  d:'신고일 23:59:59 — 아직 허용된다',
+   s:{dtm:'2026-09-12T23:59:59',acct:'10200000000002',type:'WDR',amt:300000,chnl:'20'}},
+  {t:'차단개시 직후 출금',    d:'다음날 00:00:00 — D001 로 차단된다',
+   s:{dtm:'2026-09-13T00:00:00',acct:'10200000000002',type:'WDR',amt:300000,chnl:'20'}},
+  {t:'차단 중 입금',          d:'입금은 규칙상 허용 — 유족 연금 수령 등',
+   s:{dtm:'2026-09-14T10:00:00',acct:'10200000000002',type:'DEP',amt:800000,chnl:'10'}},
+  {t:'자동이체 출금 시도',    d:'D002 — 공과금 자동이체도 멈춘다',
+   s:{dtm:'2026-09-15T03:00:00',acct:'10200000000002',type:'ATO',amt:120000,chnl:'40'}},
+  {t:'계좌해지 시도',         d:'D003 — 상속 절차 전에는 해지 불가',
+   s:{dtm:'2026-09-15T14:00:00',acct:'10200000000002',type:'CLS',amt:0,chnl:'10'}},
+  {t:'정상 고객 출금',        d:'차단 정보가 없어 규칙 조회도 건너뛴다',
+   s:{dtm:'2026-09-15T11:00:00',acct:'10200000000001',type:'WDR',amt:500000,chnl:'30'}},
+  {t:'잔액 초과 출금',        d:'판정은 통과, E030 으로 거절',
+   s:{dtm:'2026-09-15T11:30:00',acct:'10200000000004',type:'WDR',amt:9000000,chnl:'30'}}
+];
+
+/* =====================================================================
+   배치
+   ===================================================================== */
+const FEED = [
+  {nm:'박순자',hash:'3f2a91c4de77b0',death:'2026-09-11',report:'2026-09-12',birth:'1948-07-02'},
+  {nm:'이영희',hash:'8b14c0ff2a6d93',death:'2026-09-11',report:'2026-09-12',birth:'1960-11-20'},
+  {nm:'최말순',hash:'c70d5ea1b43f28',death:'2026-09-10',report:'2026-09-12',birth:'1951-01-09'},
+  {nm:'정해석',hash:'a01e6b7c99d412',death:'2026-09-11',report:'2026-09-12',birth:'1939-02-17'}
+];
+let batchDone = false;
+
+function runBatch(){
+  if(batchDone){ return; }
+  batchDone = true;
+  const steps=[]; let recv=0,match=0,multi=0,none=0,blk=0;
+
+  steps.push({layer:'ext',title:'수신파일 등록',
+    why:'기준일자 단위로 파일을 받고 <code>UNIQUE (base_biz_dt)</code> 로 같은 날 파일이 두 번 들어오는 것을 막는다.',
+    sql:`INSERT INTO ext_link.ext_death_file (base_biz_dt, total_cnt, receive_dtm, process_status_cd)\nVALUES ('20260912', ${FEED.length}, '2026-09-13 02:00:00.000', '10');`,
+    res:`death_file_id = <b>1</b> · total_cnt = <b>${FEED.length}</b>`});
+
+  FEED.forEach((f,i)=>{
+    recv++;
+    // 이름 + 생년월일로 우리 고객을 찾는다 (해시는 데모라 생년월일로 대체 매칭)
+    const cands = DB.cust.filter(c=>c.cust_nm===f.nm && c.birth_dt===f.birth);
+    let st,matched=null;
+    if(cands.length===1){ st='20'; matched=cands[0].cust_no; match++; }
+    else if(cands.length>1){ st='40'; multi++; }
+    else { st='30'; none++; }
+    const id = DB.ext_death_record.length+1;
+    DB.ext_death_record.push({death_record_id:id,death_file_id:1,record_seq:i+1,cust_nm:f.nm,
+      rrn_hash:f.hash+'0'.repeat(50),death_dt:f.death,death_report_dt:f.report,
+      match_status_cd:st,matched_cust_no:matched});
+    markFresh('ext_death_record',id);
+    steps.push({layer:'ext',title:`레코드 ${i+1} — ${f.nm}`,
+      why: st==='20'?'해시가 정확히 1건과 맞았다 → 차단 생성 대상'
+          : st==='40'?'<b>동명이인</b>으로 2건이 맞았다. 자동 차단하면 엉뚱한 사람 계좌가 막히므로 보류하고 사람이 확인한다.'
+          : '우리 고객이 아니다. 기록만 남기고 넘어간다.',
+      sql:`SELECT cust_no FROM core_bank.cust WHERE rrn_hash = '${f.hash}…';\n\nINSERT INTO ext_link.ext_death_record\n  (death_file_id, record_seq, cust_nm, rrn_hash, death_dt, death_report_dt, match_status_cd, matched_cust_no)\nVALUES (1, ${i+1}, '${f.nm}', '${f.hash}…', '${f.death}', '${f.report}', '${st}', ${matched?`'${matched}'`:'NULL'});`,
+      res:`매칭 후보 <b>${cands.length}건</b> → match_status_cd = <b>${st}</b>`});
+
+    if(st==='20' && !DB.death_block.find(b=>b.cust_no===matched)){
+      blk++;
+      const bid = DB.death_block.length+1;
+      const bs = new Date(f.report+'T00:00:00'); bs.setDate(bs.getDate()+1);
+      DB.death_block.push({block_id:bid,cust_no:matched,death_dt:f.death,death_report_dt:f.report,
+        block_start_dtm:fmtDtm(bs),block_status_cd:'20',release_dtm:null,release_reason_cd:null});
+      markFresh('death_block',bid);
+      steps.push({layer:'core',title:`차단 생성 — ${matched}`,
+        why:'차단개시일시를 자바가 계산해서 넣지 않는다. 잘못된 값을 넣으면 <b>CHECK 제약이 거부</b>한다 (ERROR 3819).',
+        sql:`INSERT INTO core_bank.death_block\n  (cust_no, source_record_id, death_dt, death_report_dt, block_start_dtm, block_status_cd)\nVALUES ('${matched}', ${id}, '${f.death}', '${f.report}',\n        TIMESTAMP(DATE_ADD('${f.report}', INTERVAL 1 DAY)), '20');`,
+        res:`block_start_dtm = <b>${fmtDtm(bs)}</b> (= 신고일 + 1일 00:00)`});
+    }
+  });
+
+  steps.push({layer:'ext',title:'파일 처리완료',
+    sql:`UPDATE ext_link.ext_death_file SET process_status_cd = '30' WHERE death_file_id = 1;`,
+    res:`수신 <b>${recv}</b> · 매칭성공 <b>${match}</b> · 다건매칭 <b>${multi}</b> · 미매칭 <b>${none}</b> · 차단생성 <b>${blk}</b>`});
+
+  $('#bRecv').textContent=recv; $('#bMatch').textContent=match;
+  $('#bMulti').textContent=multi; $('#bNone').textContent=none; $('#bBlock').textContent=blk;
+  $('#batchBtn').disabled = true;
+  play($('#batchSteps'),steps); renderDb(); renderAcctSel();
+}
+
+function runRelease(){
+  const b = DB.death_block.find(x=>x.cust_no==='C0000000005');
+  if(!b){ alertish('먼저 야간 배치를 실행해 최말순 차단을 만들어 주세요.'); return; }
+  if(b.block_status_cd==='30'){ alertish('이미 해제된 차단입니다.'); return; }
+  b.block_status_cd='30'; b.release_dtm='2026-09-15 16:20:00.000'; b.release_reason_cd='10';
+  markFresh('death_block',b.block_id);
+  play($('#batchSteps'),[
+    {layer:'core',title:'차단 해제',
+     why:'오매칭이 확인되면 행을 <b>지우지 않고</b> 상태만 바꾼다. 왜 한때 막혔는지를 설명할 수 있어야 하기 때문이다.',
+     sql:`UPDATE core_bank.death_block\n   SET block_status_cd = '30',\n       release_dtm = '2026-09-15 16:20:00.000',\n       release_reason_cd = '10'   -- 동명이인 오매칭\n WHERE block_id = ${b.block_id};`,
+     res:`block_status_cd = <b>30 해제</b>`},
+    {layer:'core',title:'해제 이력 적재',
+     why:'누가 언제 무슨 사유로 풀었는지를 별도 표에 남긴다.',
+     sql:`INSERT INTO core_bank.death_block_hist (block_id, action_cd, reason_cd, action_dtm, actor_id)\nVALUES (${b.block_id}, '20', '10', '2026-09-15 16:20:00.000', 'TLR-0001');`}
+  ]);
+  renderDb();
+}
+function alertish(m){
+  const d=document.createElement('div');
+  d.className='pop'; d.style.left='50%'; d.style.top='80px'; d.style.transform='translateX(-50%)';
+  d.innerHTML=`<button class="x" aria-label="닫기">×</button>${esc(m)}`;
+  setTimeout(()=>{
+    document.body.appendChild(d);
+    d.querySelector('.x').onclick=()=>d.remove();
+    setTimeout(()=>d.remove(),4000);
+  },0);
+}
+
+/* =====================================================================
+   동시성 실험실
+   ===================================================================== */
+function runLock(){
+  const acctNo = $('#lockAcct').value;
+  const amt = Math.max(0, parseInt(String($('#lockAmt').value).replace(/[^0-9]/g,''),10)||0);
+  const useFU = $('#fuToggle').checked;
+  const acct = DB.acct.find(a=>a.acct_no===acctNo);
+  const start = acct.balance_amt;
+  const A=[],B=[];
+  const sel = useFU ? 'SELECT balance_amt … FOR UPDATE' : 'SELECT balance_amt …';
+
+  if(useFU){
+    A.push(['T1','BEGIN']);                       B.push(['T1','BEGIN']);
+    A.push(['T2',`${sel} → ${won(start)}`,'good']);
+    B.push(['T2',`${sel} → 락 대기…`,'w']);
+    A.push(['T3',`판정: 허용`]);
+    A.push(['T4',`UPDATE 잔액 = ${won(start-amt)}`]);
+    A.push(['T5','INSERT acct_txn']);
+    A.push(['T6','COMMIT — 락 해제','good']);
+    B.push(['T7',`락 획득 → ${won(start-amt)}`,'good']);
+    const second = start-amt;
+    if(second < amt){
+      B.push(['T8',`잔액부족 E030 → ROLLBACK`,'bad']);
+      acct.balance_amt = second;
+      pushTxn(acctNo,amt,second,'0000');
+      finish(start, acct.balance_amt, amt, 1, true);
+    }else{
+      B.push(['T8',`UPDATE 잔액 = ${won(second-amt)}`]);
+      B.push(['T9','COMMIT','good']);
+      acct.balance_amt = second-amt;
+      pushTxn(acctNo,amt,second,'0000'); pushTxn(acctNo,amt,second-amt,'0000');
+      finish(start, acct.balance_amt, amt, 2, true);
+    }
+  }else{
+    A.push(['T1','BEGIN']);                       B.push(['T1','BEGIN']);
+    A.push(['T2',`${sel} → ${won(start)}`,'w']);  B.push(['T2',`${sel} → ${won(start)}`,'w']);
+    A.push(['T3','판정: 허용']);                   B.push(['T3','판정: 허용']);
+    A.push(['T4',`UPDATE 잔액 = ${won(start-amt)}`]);
+    B.push(['T5',`UPDATE 잔액 = ${won(start-amt)}`,'bad']);
+    A.push(['T6','COMMIT','good']);               B.push(['T7','COMMIT — A를 덮어씀','bad']);
+    acct.balance_amt = start-amt;
+    pushTxn(acctNo,amt,start-amt,'0000'); pushTxn(acctNo,amt,start-amt,'0000');
+    finish(start, acct.balance_amt, amt, 2, false);
+  }
+
+  const row = ([t,txt,cls]) => `<div class="ev ${cls||''}"><span class="t">${t}</span><span>${esc(txt)}</span></div>`;
+  $('#laneA').innerHTML = A.map(row).join('');
+  $('#laneB').innerHTML = B.map(row).join('');
+  markFresh('acct',acctNo);
+  renderDb(); renderAcctSel();
+}
+function pushTxn(acctNo,amt,after,rsp){
+  const d = sysDate();
+  DB.acct_txn.push({txn_unique_no:nextNo('T',d),acct_no:acctNo,txn_dtm:fmtDtm(d),
+    txn_type_cd:'WDR',dr_cr_cd:'O',txn_amt:amt,balance_after_amt:after,chnl_cd:'10',rsp_cd:rsp});
+}
+function finish(start,end,amt,okCount,safe){
+  const paid = amt*okCount;
+  const expected = start - paid;
+  const gap = end - expected;
+  $('#lockOut').innerHTML = `<div class="outcome ${gap===0?'o-ok':'o-bad'}">
+    시작잔액 <b>${won(start)}</b> · 실제 나간 돈 <b>${won(paid)}</b> (성공 ${okCount}건) ·
+    기대잔액 <b>${won(expected)}</b> · 최종잔액 <b>${won(end)}</b><br>
+    ${gap===0
+      ? '차이 <b>0원</b> — 정상이다. 두 번째 세션이 기다렸다가 갱신된 잔액을 다시 읽었다.'
+      : `차이 <b>${won(gap)}원</b> — <b>갱신 손실</b>이다. ${won(paid)}원이 나갔는데 잔액은 ${won(amt)}원만 줄었다. <b>오류 메시지는 하나도 나오지 않았다</b>는 점이 가장 위험하다.`}
+  </div>`;
+}
+
+/* =====================================================================
+   초기화 / 바인딩
+   ===================================================================== */
+function renderAcctSel(){
+  const opts = DB.acct.map(a=>{
+    const c = DB.cust.find(x=>x.cust_no===a.cust_no);
+    const b = DB.death_block.find(x=>x.cust_no===a.cust_no);
+    const tag = b ? ` [${BLK_ST[b.block_status_cd]}]` : '';
+    return `<option value="${a.acct_no}">${a.acct_no} · ${c.cust_nm}${tag} · ${won(a.balance_amt)}원</option>`;
+  }).join('');
+  for(const id of ['#acctSel','#lockAcct']){
+    const el=$(id), keep=el.value; el.innerHTML=opts; if(keep) el.value=keep;
+  }
+}
+function init(){
+  $('#chnlChips').innerHTML = Object.entries(CHNL).map(([k,v])=>
+    `<button class="chip" aria-pressed="${k===chnlCd}" data-chnl="${k}">${k} ${v}</button>`).join('');
+  $('#typeSel').innerHTML = Object.entries(TXN).map(([k,v])=>
+    `<option value="${k}">${k} · ${v.nm} (${v.dr==='I'?'입금':'출금'})</option>`).join('');
+  $('#typeSel').value='WDR';
+  $('#scenList').innerHTML = SCEN.map((s,i)=>
+    `<button data-scen="${i}"><b>${esc(s.t)}</b><span>${esc(s.d)}</span></button>`).join('');
+  renderAcctSel(); renderDb();
+}
+
+document.addEventListener('click',e=>{
+  const chip=e.target.closest('[data-chnl]');
+  if(chip){ chnlCd=chip.dataset.chnl;
+    $$('#chnlChips .chip').forEach(c=>c.setAttribute('aria-pressed',c===chip)); return; }
+
+  const tab=e.target.closest('.tab[data-pane]');
+  if(tab){
+    $$('.tab[data-pane]').forEach(t=>t.setAttribute('aria-selected',t===tab));
+    ['p-txn','p-batch','p-lock'].forEach(id=>$('#'+id).hidden = (id!==tab.dataset.pane));
+    return;
+  }
+  const dt=e.target.closest('[data-v]');
+  if(dt){ dbView=dt.dataset.v; renderDb(); return; }
+
+  const sc=e.target.closest('[data-scen]');
+  if(sc){
+    const s=SCEN[+sc.dataset.scen].s;
+    $('#sysdtm').value=s.dtm; $('#acctSel').value=s.acct; $('#typeSel').value=s.type;
+    $('#amtInput').value=s.amt; chnlCd=s.chnl;
+    $$('#chnlChips .chip').forEach(c=>c.setAttribute('aria-pressed',c.dataset.chnl===s.chnl));
+    runTxn(); return;
+  }
+
+  const term=e.target.closest('.term');
+  if(term){
+    $$('.pop').forEach(p=>p.remove());
+    const d=TERMS[term.dataset.term]; if(!d) return;
+    const p=document.createElement('div'); p.className='pop';
+    p.innerHTML=`<button class="x" aria-label="닫기">×</button><h4>${esc(d[0])}</h4><div>${d[1]}</div>`;
+    document.body.appendChild(p);
+    const r=term.getBoundingClientRect();
+    const w=Math.min(340,innerWidth-32);
+    p.style.width=w+'px';
+    p.style.left=Math.max(16,Math.min(innerWidth-w-16,r.left))+'px';
+    const h=p.offsetHeight;
+    p.style.top=(r.bottom+8+h>innerHeight ? Math.max(16,r.top-h-8) : r.bottom+8)+'px';
+    p.querySelector('.x').onclick=()=>p.remove();
+    return;
+  }
+  if(!e.target.closest('.pop')) $$('.pop').forEach(p=>p.remove());
+});
+
+$('#sendBtn').onclick = runTxn;
+$('#batchBtn').onclick = runBatch;
+$('#releaseBtn').onclick = runRelease;
+$('#lockBtn').onclick = runLock;
+$('#resetBtn').onclick = ()=>{
+  DB=SEED(); SEQ=0; batchDone=false; FRESH.clear();
+  $('#batchBtn').disabled=false;
+  ['bRecv','bMatch','bMulti','bNone','bBlock'].forEach(id=>$('#'+id).textContent='0');
+  $('#steps').innerHTML=''; $('#batchSteps').innerHTML=''; $('#lockOut').innerHTML='';
+  $('#laneA').innerHTML='<div class="ev"><span class="t">—</span><span>대기</span></div>';
+  $('#laneB').innerHTML='<div class="ev"><span class="t">—</span><span>대기</span></div>';
+  $('#msgReq').textContent='—'; $('#msgRes').textContent='—'; $('#pipeMs').textContent='';
+  $('#verdictBox').className='verdict v-idle';
+  $('#verdictBox').innerHTML='<div class="v-top"><strong>대기</strong></div>'
+    +'<div class="v-msg">좌측에서 거래를 전송하면 처리 단계가 하나씩 표시됩니다.</div>';
+  $('#sysdtm').value='2026-09-13T09:00:00';
+  renderAcctSel(); renderDb();
+};
+$('#themeBtn').onclick = ()=>{
+  const cur=document.documentElement.getAttribute('data-theme');
+  const dark=cur? cur==='dark' : matchMedia('(prefers-color-scheme:dark)').matches;
+  document.documentElement.setAttribute('data-theme', dark?'light':'dark');
+};
+
+init();
+/* 첫 화면이 비어 있지 않도록, 가장 중요한 경계값 시나리오를 미리 한 번 돌려 둔다. */
+(function(){
+  const s=SCEN[1].s;
+  $('#sysdtm').value=s.dtm; $('#acctSel').value=s.acct; $('#typeSel').value=s.type;
+  $('#amtInput').value=s.amt; chnlCd=s.chnl;
+  $$('#chnlChips .chip').forEach(c=>c.setAttribute('aria-pressed',c.dataset.chnl===s.chnl));
+  runTxn();
+})();
+</script>

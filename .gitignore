@@ -1,0 +1,35 @@
+# ── OS ────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# ── 에디터 / IDE ──────────────────────────────────────
+.vscode/
+.idea/
+*.swp
+*~
+
+# Eclipse — 프로젝트를 import 하면 로컬 경로가 박힌 파일이 생긴다.
+# 사람마다 경로가 달라서 커밋하면 서로 충돌한다.
+.classpath
+.project
+.settings/
+bin/
+
+# ── 빌드 산출물 ───────────────────────────────────────
+target/
+*.class
+*.jar
+
+# ── 접속 정보 (절대 커밋 금지) ────────────────────────
+# 공개 저장소다. 한 번 올라가면 커밋 기록에 영구히 남는다.
+# 커밋하는 것은 비밀번호가 없는 db.properties.example 쪽이다.
+db.properties
+**/src/main/resources/db.properties
+
+# MySQL Workbench 로컬 설정
+*.mwb.bak
+
+# ── 로그 / 임시 파일 ──────────────────────────────────
+*.log
+*.bak
